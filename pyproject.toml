@@ -1,0 +1,12 @@
+[project]
+name = "masterthesis"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "brian2>=2.9.0",
+    "matplotlib>=3.10.7",
+    "optuna>=4.6.0",
+    "pandas>=2.3.3",
+]
