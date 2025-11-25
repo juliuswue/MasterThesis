@@ -75,8 +75,9 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 N_RUNS = 300
 T_INIT = 30
 N_PARAM_SETS = 300
-N_CPU_CORES = 8
-N_NETWORKS_PER_PARAM_SET = 4
+N_CPU_CORES = 88
+N_NETWORKS_PER_PARAM_SET = 10
+N_PARALLEL_PARM_SETS = 8
 
 pbounds = {
     'p_Var': (1e-4, 2e-1),
@@ -365,8 +366,6 @@ def create_network(args):
     
     net.run(T_INIT*second)
     
-    net.store("init")    
-    
     return {
         "net": net,
         "neurons": neurons,
@@ -383,7 +382,6 @@ def create_network(args):
 
 def run_single_network(args):
     network = create_network(args)
-    network["net"].restore("init")
     
     results = np.zeros(N_RUNS)
     for i in range(N_RUNS):
@@ -414,6 +412,7 @@ def run_single_network(args):
     fname = os.path.join(args["outdir"], f"network_{args["random_seed"]}_layout.png")
     fig.savefig(fname, bbox_inches='tight', dpi=150)
     plt.close(fig)
+    del fig
         
     return mean(results[-results.size//10:])
 
@@ -424,10 +423,10 @@ def run_one_paramter_set(trial):
     p_Sigma = trial.suggest_float("Sigma", 0, 2e-1)
     p_tau_slow = trial.suggest_float("tau_slow", 200, 400)
     p_eff = trial.suggest_float("eff", 0.3, 0.8)
-    p_readout_acc = trial.suggest_float("readout_acc", 1e-3, 1)
-    p_W_sum = trial.suggest_float("W_sum", 0.2, 0.9)
+    p_readout_acc = trial.suggest_float("readout_acc", 1e-3, 2e-1)
+    p_W_sum = trial.suggest_float("W_sum", 0.2, 0.95)
     p_A_ltd = trial.suggest_float("A_ltd", 0.7, 4)
-    p_C = trial.suggest_float("C", 0, 100)
+    p_C = trial.suggest_float("C", 0, 20)
     
     outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{trial.number}"
     os.makedirs(outdir, exist_ok=True)
@@ -454,118 +453,28 @@ def run_one_paramter_set(trial):
                 "eff": p_eff,
                 "readout_acc": p_readout_acc,
             })
+    
+    # parallelize across different seeds
+    with Pool(processes=min(N_NETWORKS_PER_PARAM_SET, N_CPU_CORES)) as seed_pool:
+        results = seed_pool.map(run_single_network, args_list)
         
-    results = array([run_single_network(args) for args in args_list])
     return mean(results)
-
-# # called by the optimizer
-# def run_simulation(p_Var, p_Sigma, p_C, p_W_sum, p_A_ltd, p_tau_slow, p_eff, p_readout_acc):
-#     # we want to store plots for the different runs such that we can insepct them later
-#     outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}"
-#     os.makedirs(outdir, exist_ok=True)
-    
-#     n_networks = 16
-#     processes = min(n_networks, 8)
-    
-#     args_list = []
-#     for random_seed in range(n_networks):
-#         args_list.append(
-#             {
-#                 "random_seed": random_seed,
-#                 "outdir": outdir,
-#                 # neuron parameters
-#                 "U_r0": 1,
-#                 "Var_ur": p_Var,
-#                 "Sigma_ur": p_Sigma,
-#                 "Tau_slow": p_tau_slow,
-#                 "Tau": 100,
-#                 # synapse params
-#                 "Lr": 1e-3, 
-#                 "W_sum_max": p_W_sum, 
-#                 "A_ltd": p_A_ltd, 
-#                 "R_0": 2,
-#                 "C": p_C,
-#                 # set-up params
-#                 "eff": p_eff,
-#                 "readout_acc": p_readout_acc,
-#             })
-    
-#     with Pool(processes=processes) as pool:
-#         results_list = list(pool.imap(run_single_network, args_list))
-    
-#     results = vstack(results_list)
-#     df = pd.DataFrame(results, columns=['mean_success_rate'])
-#     df.to_csv(f"{outdir}/network_results.csv", index=False)
-    
-#     return mean(results)
   
-def run_optimization(_):
+def run_optimization():
     study = optuna.create_study(
         study_name="journal_storage_multiprocess",
         storage=JournalStorage(JournalFileBackend(file_path="./journal.log")),
         load_if_exists=True, # Useful for multi-process or multi-node optimization.
         direction='maximize'
     )
-    study.optimize(run_one_paramter_set, n_trials=3)
+    study.optimize(run_one_paramter_set, n_trials=N_PARAM_SETS)
   
     
 def main():
     print(f"Starting at {datetime.datetime.now().strftime("%H:%M:%S")}")
-    start_time = time.time()    
-    
-    with Pool(processes=N_CPU_CORES) as pool:
-        pool.map(run_optimization, range(N_PARAM_SETS))
-    
-    # n_init_steps = 40
-    # n_optimize_steps = 120
-    # save_iterations = 4 
-    
-    
-    # optimizer = BayesianOptimization(
-    # f=run_simulation,
-    # pbounds=pbounds,
-    # verbose=2,
-    # random_state=2,
-    # )
-    
-    # optimizer.probe(
-    # params= {
-    #     'p_Var': 1e-1,
-    #     'p_Sigma': 1e-1,
-    #     'p_C': 30,
-    #     'p_W_sum': 0.7,
-    #     'p_A_ltd': 1.8,
-    #     'p_tau_slow': 250,
-    #     'p_eff': 0.4,
-    #     'p_readout_acc': 1e-2
-    # }, lazy=False)
-    
-    # optimizer.probe(
-    # params= {
-    #     'p_Var': 1e-1,
-    #     'p_Sigma': 1e-1,
-    #     'p_C': 1e-1,
-    #     'p_W_sum': 0.7,
-    #     'p_A_ltd': 1.,
-    #     'p_tau_slow': 250,
-    #     'p_eff': 0.7,
-    #     'p_readout_acc': 1e-2
-    # }, lazy=True)
-    
-    
-    # for i in range(n_init_steps // save_iterations):
-    #     optimizer.maximize(
-    #         init_points=save_iterations,
-    #         n_iter=0,
-    #     )
-    #     optimizer.save_state(f"optimizer_state_init_{(i+1)*save_iterations}_steps.json")
+    start_time = time.time()
         
-    # for i in range(n_optimize_steps // save_iterations):
-    #     optimizer.maximize(
-    #         init_points=0,
-    #         n_iter=save_iterations,
-    #     )
-    #     optimizer.save_state(f"optimizer_max_state_{(i+1)*save_iterations}_steps.json")
+    run_optimization()
     
     print(f"Ended at {datetime.datetime.now().strftime("%H:%M:%S")}. Took {(time.time()-start_time):.0f}s to run")
     

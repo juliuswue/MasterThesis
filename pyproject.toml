@@ -8,5 +8,6 @@ dependencies = [
     "brian2>=2.9.0",
     "matplotlib>=3.10.7",
     "optuna>=4.6.0",
+    "optuna-dashboard>=0.20.0",
     "pandas>=2.3.3",
 ]
