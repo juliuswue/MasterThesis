@@ -13,7 +13,6 @@ from multiprocessing import Pool
 
 from brian2 import *
 
-
 # ----------------------- models -----------------------
 # --- Brian Equations ---
 eqs_neurons = '''
@@ -72,12 +71,11 @@ MOTOR_POSITIONS_Y = 80 * mm_per_electrode
 n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
-N_RUNS = 300
+N_RUNS = 10
 T_INIT = 30
-N_PARAM_SETS = 300
-N_CPU_CORES = 88
-N_NETWORKS_PER_PARAM_SET = 10
-N_PARALLEL_PARM_SETS = 8
+N_PARAM_SETS = 1_000
+N_CPU_CORES = 80
+N_NETWORKS_PER_PARAM_SET = 5
 
 pbounds = {
     'p_Var': (1e-4, 2e-1),
@@ -453,28 +451,40 @@ def run_one_paramter_set(trial):
                 "eff": p_eff,
                 "readout_acc": p_readout_acc,
             })
-    
-    # parallelize across different seeds
-    with Pool(processes=min(N_NETWORKS_PER_PARAM_SET, N_CPU_CORES)) as seed_pool:
-        results = seed_pool.map(run_single_network, args_list)
+        
+    results = []
+    for step, args in enumerate(args_list):
+        results.append(run_single_network(args))
+        
+        intermediate_result = mean(array(results))
+        trial.report(intermediate_result, step)
+        
+        if trial.should_prune():
+            raise optuna.TrialPruned()
         
     return mean(results)
   
-def run_optimization():
+def run_optimization(_):
     study = optuna.create_study(
         study_name="journal_storage_multiprocess",
         storage=JournalStorage(JournalFileBackend(file_path="./journal.log")),
         load_if_exists=True, # Useful for multi-process or multi-node optimization.
-        direction='maximize'
+        direction='maximize',
+        pruner=optuna.pruners.PercentilePruner(
+            25.0, 
+            n_startup_trials=N_CPU_CORES, 
+            n_warmup_steps=3, 
+            interval_steps=3
+        )
     )
-    study.optimize(run_one_paramter_set, n_trials=N_PARAM_SETS)
-  
+    study.optimize(run_one_paramter_set, n_trials=N_PARAM_SETS // N_CPU_CORES)
     
 def main():
     print(f"Starting at {datetime.datetime.now().strftime("%H:%M:%S")}")
     start_time = time.time()
-        
-    run_optimization()
+    
+    with Pool(processes=N_CPU_CORES) as pool:
+        pool.map(run_optimization, range(N_CPU_CORES))
     
     print(f"Ended at {datetime.datetime.now().strftime("%H:%M:%S")}. Took {(time.time()-start_time):.0f}s to run")
     
