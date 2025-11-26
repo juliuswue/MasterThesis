@@ -12,3 +12,4 @@ wheels/
 # simulation result files
 results/
 *.log
+test/
