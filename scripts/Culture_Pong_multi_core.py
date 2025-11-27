@@ -75,8 +75,8 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 N_RUNS = 300
 T_INIT = 30
 N_PARAM_SETS = 1_000
-N_CPU_CORES = 5
-N_NETWORKS_PER_PARAM_SET = 2
+N_CPU_CORES = 80
+N_NETWORKS_PER_PARAM_SET = 20
 
 pbounds = {
     'p_Var': (1e-4, 2e-1),
@@ -311,40 +311,40 @@ def run_single_network(args):
     
     n_trials = 0
     game_state = 'running'
-    with open(simulation_state_fname, 'w') as f:
-        f.write("trial,ball_x,ball_y,paddle_y,pong_state\n")
+    # with open(simulation_state_fname, 'w') as f:
+    #     f.write("trial,ball_x,ball_y,paddle_y,pong_state\n")
         
-        while n_trials < N_RUNS:
-            if game_state == 'running':
-                pong_state = simulator.get_simulation()
-                r_U, r_D = gameplay_stimulation(network, pong_state['stim_id'], dt_sim)
-                p_U = 1 / (1+exp(- (r_U - r_D) / network["args"]["readout_acc"]))
-                if rand() < p_U:
-                    game_state = simulator.simulate('up')
-                else:
-                    game_state = simulator.simulate('down')
-                    
-            elif game_state == 'hit':
-                sync_stimulation(network)
-                results[n_trials] = 1
-                
-                pong_state = simulator.get_simulation()
-                game_state = 'running'
-                n_trials += 1
-                
-            elif game_state == 'miss':
-                random_stimulation(network)
-                results[n_trials] = 0
-                
-                simulator.reset()
-                pong_state = simulator.get_simulation()
-                game_state = 'running'
-                n_trials += 1
+    while n_trials < N_RUNS:
+        if game_state == 'running':
+            pong_state = simulator.get_simulation()
+            r_U, r_D = gameplay_stimulation(network, pong_state['stim_id'], dt_sim)
+            p_U = 1 / (1+exp(- (r_U - r_D) / network["args"]["readout_acc"]))
+            if rand() < p_U:
+                game_state = simulator.simulate('up')
             else:
-                raise "unknown game_state {game_state}!"
+                game_state = simulator.simulate('down')
+                
+        elif game_state == 'hit':
+            sync_stimulation(network)
+            results[n_trials] = 1
+            
+            pong_state = simulator.get_simulation()
+            game_state = 'running'
+            n_trials += 1
+            
+        elif game_state == 'miss':
+            random_stimulation(network)
+            results[n_trials] = 0
+            
+            simulator.reset()
+            pong_state = simulator.get_simulation()
+            game_state = 'running'
+            n_trials += 1
+        else:
+            raise "unknown game_state {game_state}!"
         
-            #----- save data -----
-            f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state}\n")    
+            # #----- save data -----
+            # f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state}\n")    
         
     # save run
     fig = plot_run(network)
@@ -417,9 +417,9 @@ def run_optimization(_):
         direction='maximize',
         pruner=optuna.pruners.PercentilePruner(
             25.0, 
-            n_startup_trials=N_CPU_CORES*4, 
-            n_warmup_steps=5,
-            interval_steps=1
+            n_startup_trials=N_CPU_CORES, 
+            n_warmup_steps=4,
+            interval_steps=2
         )
     )
     study.optimize(run_one_paramter_set, n_trials=N_PARAM_SETS // N_CPU_CORES)
