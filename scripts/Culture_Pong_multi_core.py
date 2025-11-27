@@ -354,8 +354,8 @@ def run_single_network(args):
     del fig
     
     # storer results
-    fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
-    np.savetxt(fname, results, delimiter=",")
+    # fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
+    # np.savetxt(fname, results, delimiter=",")
     
     return mean(results[-results.size//10:])
       
