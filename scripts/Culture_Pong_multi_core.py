@@ -72,11 +72,11 @@ MOTOR_POSITIONS_Y = 80 * mm_per_electrode
 n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
-N_RUNS = 300
+N_RUNS = 250
 T_INIT = 30
 N_PARAM_SETS = 1_000
 N_CPU_CORES = 80
-N_NETWORKS_PER_PARAM_SET = 20
+N_NETWORKS_PER_PARAM_SET = 10
 
 pbounds = {
     'p_Var': (1e-4, 2e-1),
@@ -418,7 +418,7 @@ def run_optimization(_):
         pruner=optuna.pruners.PercentilePruner(
             25.0, 
             n_startup_trials=N_CPU_CORES, 
-            n_warmup_steps=4,
+            n_warmup_steps=3,
             interval_steps=2
         )
     )
