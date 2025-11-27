@@ -11,7 +11,7 @@ class PongSimulator:
         # Paddle properties
         self.paddle_width = 5
         self.paddle_height = 40
-        self.paddle_speed = 2 * self.width * self.dt_sim
+        self.paddle_speed = 0.5 * self.width * self.dt_sim
         self.paddle_y = self.height // 2  # center of the paddle
 
         # Ball properties
@@ -30,7 +30,7 @@ class PongSimulator:
 
     def reset(self):
         self.ball_x = self.width - self.ball_radius * 2
-        self.ball_y = np.random.uniform(low= 2*self.ball_radius, high= self.height - 2 * 2*self.ball_radius)
+        self.ball_y = np.random.uniform(low= 2*self.ball_radius, high= self.height - 2 * 2 * self.ball_radius)
         self.ball_speed_x = - self.paddle_speed / 2
         self.ball_speed_y = np.random.uniform(low=self.ball_speed_x / 2, high=self.ball_speed_x) * np.random.choice([-1, 1])
 

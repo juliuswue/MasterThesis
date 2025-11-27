@@ -75,8 +75,8 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 N_RUNS = 300
 T_INIT = 30
 N_PARAM_SETS = 1_000
-N_CPU_CORES = 80
-N_NETWORKS_PER_PARAM_SET = 20
+N_CPU_CORES = 5
+N_NETWORKS_PER_PARAM_SET = 2
 
 pbounds = {
     'p_Var': (1e-4, 2e-1),
@@ -157,9 +157,10 @@ def plot_network(network):
     return fig
 
 def plot_run(network):
-    fig, axs = plt.subplots(1,2, figsize=(8, 6))
+    fig, axs = plt.subplots(1,3, figsize=(8, 4))
     
     M = network["M"]
+    S = network["S"]
     t_mask_all = network["M"].t > T_INIT*second
     
     # highlight stimulated neurons
@@ -173,6 +174,15 @@ def plot_run(network):
         axs[1].plot(M.t[t_mask_all], M.r[:, t_mask_all][idx,:].T, alpha=0.3, linewidth=1.5, color='dodgerblue')
     axs[1].plot(M.t[t_mask_all], mean(M.r[:,t_mask_all][network['motor_ids_U']], axis=0), alpha=0.6, linewidth=1.5, color='purple')
     axs[1].plot(M.t[t_mask_all], mean(M.r[:,t_mask_all][network['motor_ids_D']], axis=0), alpha=0.6, linewidth=1.5, color='darkblue')
+        
+    # weights
+    axs[2].plot(S.t[t_mask_all], S.w[:, t_mask_all].T, alpha=0.3, linewidth=1.5, color='lightgray')
+    
+    for ax in axs:
+        ax.set_xlabel('time [s]')
+    axs[0].set_ylabel('rate [Hz]')
+    axs[1].set_ylabel('rate [Hz]')
+    axs[2].set_ylabel('w')
         
     fig.tight_layout()
     return fig
@@ -288,6 +298,7 @@ def run_single_network(args):
     # plot network 
     fig = plot_network(network)
     fname = os.path.join(args["outdir"], f"network_{args["random_seed"]}_layout.png")
+    simulation_state_fname = os.path.join(args["outdir"], f"network_{args["random_seed"]}_simulation_states.csv")
     fig.savefig(fname, bbox_inches='tight', dpi=150)
     plt.close(fig)
     del fig
@@ -300,37 +311,40 @@ def run_single_network(args):
     
     n_trials = 0
     game_state = 'running'
-    
-    while n_trials < N_RUNS:
-        if game_state == 'running':
-            pong_state = simulator.get_simulation()
-            r_U, r_D = gameplay_stimulation(network, pong_state['stim_id'], dt_sim)
-            p_U = 1 / (1+exp(- (r_U - r_D) / network["args"]["readout_acc"]))
-            if rand() < p_U:
-                game_state = simulator.simulate('up')
-            else:
-                game_state = simulator.simulate('down')
+    with open(simulation_state_fname, 'w') as f:
+        f.write("trial,ball_x,ball_y,paddle_y,pong_state\n")
+        
+        while n_trials < N_RUNS:
+            if game_state == 'running':
+                pong_state = simulator.get_simulation()
+                r_U, r_D = gameplay_stimulation(network, pong_state['stim_id'], dt_sim)
+                p_U = 1 / (1+exp(- (r_U - r_D) / network["args"]["readout_acc"]))
+                if rand() < p_U:
+                    game_state = simulator.simulate('up')
+                else:
+                    game_state = simulator.simulate('down')
+                    
+            elif game_state == 'hit':
+                sync_stimulation(network)
+                results[n_trials] = 1
                 
-        elif game_state == 'hit':
-            sync_stimulation(network)
-            results[n_trials] = 1
-            print(f'trial {n_trials}: hit!')
-            
-            simulator.reset()
-            game_state = 'running'
-            n_trials += 1
-            
-        elif game_state == 'miss':
-            random_stimulation(network)
-            results[n_trials] = 0
-            print(f'trial {n_trials}: miss!')
-            
-            simulator.reset()
-            game_state = 'running'
-            n_trials += 1
-            
-        else:
-            raise "unknown game_state {game_state}!"
+                pong_state = simulator.get_simulation()
+                game_state = 'running'
+                n_trials += 1
+                
+            elif game_state == 'miss':
+                random_stimulation(network)
+                results[n_trials] = 0
+                
+                simulator.reset()
+                pong_state = simulator.get_simulation()
+                game_state = 'running'
+                n_trials += 1
+            else:
+                raise "unknown game_state {game_state}!"
+        
+            #----- save data -----
+            f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state}\n")    
         
     # save run
     fig = plot_run(network)
@@ -342,46 +356,82 @@ def run_single_network(args):
     # storer results
     fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
     np.savetxt(fname, results, delimiter=",")
+    
+    return mean(results[-results.size//10:])
       
 def run_one_paramter_set(trial):
     args_list = []
     
-    p_Var = 0.1348908888518775 #trial.suggest_float("Var", 1e-4, 2e-1)
-    p_Sigma = 0.06968242702344787 #trial.suggest_float("Sigma", 0, 2e-1)
-    p_tau_slow = 222.23440669770267 #trial.suggest_float("tau_slow", 200, 400)
-    p_eff = 0.7687406942170036 #trial.suggest_float("eff", 0.3, 0.8)
-    p_readout_acc =  0.01772477676779051 #trial.suggest_float("readout_acc", 1e-3, 2e-1)
-    p_W_sum = 0.9431166796510791#trial.suggest_float("W_sum", 0.2, 0.95)
-    p_A_ltd = 0.9323114037533757#trial.suggest_float("A_ltd", 0.7, 4)
-    p_C = 13.250929443556057#trial.suggest_float("C", 0, 20)
+    p_Var = trial.suggest_float("Var", 1e-4, 2e-1)
+    p_Sigma = trial.suggest_float("Sigma", 0, 2e-1)
+    p_tau_slow = trial.suggest_float("tau_slow", 200, 400)
+    p_eff = trial.suggest_float("eff", 0.3, 0.8)
+    p_readout_acc =  trial.suggest_float("readout_acc", 1e-3, 2e-1)
+    p_W_sum = trial.suggest_float("W_sum", 0.2, 0.95)
+    p_A_ltd = trial.suggest_float("A_ltd", 0.7, 4)
+    p_C = trial.suggest_float("C", 0, 20)
     
-    outdir = f"test/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{randint(10)}"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{trial.number}"
     os.makedirs(outdir, exist_ok=True)
     
-    args = {
-        "random_seed": 0,
-        "outdir": outdir,
-        # neuron parameters
-        "U_r0": 1,
-        "Var_ur": p_Var,
-        "Sigma_ur": p_Sigma,
-        "Tau_slow": p_tau_slow,
-        "Tau": 100,
-        # synapse params
-        "Lr": 1e-3, 
-        "W_sum_max": p_W_sum, 
-        "A_ltd": p_A_ltd, 
-        "R_0": 2,
-        "C": p_C,
-        # set-up params
-        "eff": p_eff,
-        "readout_acc": p_readout_acc,
-    }
     
-    run_single_network(args)
+    for random_seed in range(N_NETWORKS_PER_PARAM_SET):
+        args_list.append(
+            {
+                "random_seed": random_seed,
+                "outdir": outdir,
+                # neuron parameters
+                "U_r0": 1,
+                "Var_ur": p_Var,
+                "Sigma_ur": p_Sigma,
+                "Tau_slow": p_tau_slow,
+                "Tau": 100,
+                # synapse params
+                "Lr": 1e-3, 
+                "W_sum_max": p_W_sum, 
+                "A_ltd": p_A_ltd, 
+                "R_0": 2,
+                "C": p_C,
+                # set-up params
+                "eff": p_eff,
+                "readout_acc": p_readout_acc,
+            })
+    
+    results = []
+    for step, args in enumerate(args_list):
+        results.append(run_single_network(args))
+        
+        intermediate_result = mean(array(results))
+        trial.report(intermediate_result, step)
+        
+        if trial.should_prune():
+            raise optuna.TrialPruned()
+        
+    return mean(results)
+
+def run_optimization(_):
+    study = optuna.create_study(
+        study_name="journal_storage_multiprocess",
+        storage=JournalStorage(JournalFileBackend(file_path="./journal.log")),
+        load_if_exists=True, # Useful for multi-process or multi-node optimization.
+        direction='maximize',
+        pruner=optuna.pruners.PercentilePruner(
+            25.0, 
+            n_startup_trials=N_CPU_CORES*4, 
+            n_warmup_steps=5,
+            interval_steps=1
+        )
+    )
+    study.optimize(run_one_paramter_set, n_trials=N_PARAM_SETS // N_CPU_CORES)
 
 def main():
-    run_one_paramter_set(0)
+    print(f"Starting at {datetime.datetime.now().strftime("%H:%M:%S")}")
+    start_time = time.time()
+    
+    with Pool(processes=N_CPU_CORES) as pool:
+        pool.map(run_optimization, range(N_CPU_CORES))
+    
+    print(f"Ended at {datetime.datetime.now().strftime("%H:%M:%S")}. Took {(time.time()-start_time):.0f}s to run")
     
 if __name__ == '__main__':
     main()
