@@ -17,7 +17,7 @@ from brian2 import *
 # ----------------------- Models -----------------------
 # --- Brian Equations ---
 eqs_neurons = '''
-r = u * Hz : Hz
+r = int(u >= 0) * u * Hz : Hz
 dr_slow/dt = 1 / Tau_slow * (-r_slow + r) : Hz
 du/dt = 1 / Tau * (-u + u_syn + u_r + r_ext) : 1
 du_r/dt = - Theta_ur * (u_r - U_r0) + Sigma_ur * xi: 1
@@ -72,11 +72,11 @@ MOTOR_POSITIONS_Y = 80 * mm_per_electrode
 n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
-N_RUNS = 300
+N_RUNS = 200
 T_INIT = 30
 N_PARAM_SETS = 1_000
-N_CPU_CORES = 80
-N_NETWORKS_PER_PARAM_SET = 20
+N_CPU_CORES = 8
+N_NETWORKS_PER_PARAM_SET = 5
 
 pbounds = {
     'p_Var': (1e-4, 2e-1),
@@ -272,8 +272,8 @@ def create_network(args):
     sensory_ids = stimulation_ids= array(sensory_ids)
     
     dt_record = 50*ms
-    M = StateMonitor(neurons, ['r'], record=True, dt=dt_record)
-    S = StateMonitor(synapses, ['w'], record=True, dt=dt_record)
+    M = StateMonitor(neurons, ['r'], record=False, dt=dt_record)
+    S = StateMonitor(synapses, ['w'], record=False, dt=dt_record)
     
     net = Network(neurons, synapses, M, S)
     
@@ -305,7 +305,7 @@ def run_single_network(args):
     
     # run simulation
     results = zeros(N_RUNS)
-    dt_sim = 0.05 #s
+    dt_sim = 0.1 #s
     simulator = PongSimulator(dt_sim)
     simulator.reset()
     
@@ -347,11 +347,11 @@ def run_single_network(args):
             # f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state}\n")    
         
     # save run
-    fig = plot_run(network)
-    fname = os.path.join(args["outdir"], f"network_{args['random_seed']}.png")
-    fig.savefig(fname, bbox_inches='tight', dpi=150)
-    plt.close(fig)
-    del fig
+    # fig = plot_run(network)
+    # fname = os.path.join(args["outdir"], f"network_{args['random_seed']}.png")
+    # fig.savefig(fname, bbox_inches='tight', dpi=150)
+    # plt.close(fig)
+    # del fig
     
     # storer results
     # fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
@@ -417,8 +417,8 @@ def run_optimization(_):
         direction='maximize',
         pruner=optuna.pruners.PercentilePruner(
             25.0, 
-            n_startup_trials=N_CPU_CORES, 
-            n_warmup_steps=4,
+            n_startup_trials=N_CPU_CORES * 5, 
+            n_warmup_steps=2,
             interval_steps=2
         )
     )
