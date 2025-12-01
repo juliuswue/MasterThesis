@@ -318,7 +318,7 @@ def run_single_network(args):
         if game_state == 'running':
             pong_state = simulator.get_simulation()
             r_U, r_D = gameplay_stimulation(network, pong_state['stim_id'], dt_sim)
-            p_U = 1 / (1+exp(- (r_U - r_D) / network["args"]["readout_acc"]))
+            p_U = 1 / (1+exp(clip(-(r_U - r_D) / network["args"]["readout_acc"], -20, 20)))
             if rand() < p_U:
                 game_state = simulator.simulate('up')
             else:
