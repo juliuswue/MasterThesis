@@ -76,18 +76,7 @@ N_RUNS = 200
 T_INIT = 30
 N_PARAM_SETS = 1_000
 N_CPU_CORES = 80
-N_NETWORKS_PER_PARAM_SET = 10
-
-pbounds = {
-    'p_Var': (1e-4, 2e-1),
-    'p_Sigma': (0, 2e-1),
-    'p_C': (1e-1, 1e2),
-    'p_W_sum': (0.2, 0.9),
-    'p_A_ltd': (0.7, 5),
-    'p_tau_slow': (200, 400),
-    'p_eff': (0.4, 0.8),
-    'p_readout_acc': (1e-4, 1)
-    }
+N_NETWORKS_PER_PARAM_SET = 6
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -357,8 +346,8 @@ def run_single_network(args):
     # fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
     # np.savetxt(fname, results, delimiter=",")
     
-    return mean(results[-results.size//10:])
-      
+    return mean(results[-results.size//4:]) - mean(results[:results.size//4])
+    
 def run_one_paramter_set(trial):
     args_list = []
     
@@ -370,6 +359,8 @@ def run_one_paramter_set(trial):
     p_W_sum = trial.suggest_float("W_sum", 0.2, 0.95)
     p_A_ltd = trial.suggest_float("A_ltd", 0.7, 4)
     p_C = trial.suggest_float("C", 0, 20)
+    p_Lr = trial.suggest_float("Lr", 1e-4, 1e-3)
+    p_tau = trial.suggest_float("Tau", 10, 100)
     
     outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{trial.number}"
     os.makedirs(outdir, exist_ok=True)
@@ -385,9 +376,9 @@ def run_one_paramter_set(trial):
                 "Var_ur": p_Var,
                 "Sigma_ur": p_Sigma,
                 "Tau_slow": p_tau_slow,
-                "Tau": 100,
+                "Tau": p_tau,
                 # synapse params
-                "Lr": 1e-3, 
+                "Lr": p_Lr, 
                 "W_sum_max": p_W_sum, 
                 "A_ltd": p_A_ltd, 
                 "R_0": 2,
