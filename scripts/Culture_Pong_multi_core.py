@@ -178,6 +178,8 @@ def plot_run(network):
 
 # --- stimulation ----
 def gameplay_stimulation(network, stim_id, dt_stim):
+    # stim_neuron_id = network["stimulation_ids"][stim_id]
+    stim_id = 0 if stim_id <= 3 else 1
     stim_neuron_id = network["stimulation_ids"][stim_id]
     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"]
     network["net"].run(dt_stim*second)
@@ -258,7 +260,17 @@ def create_network(args):
             if idx not in sensory_ids:
                 sensory_ids.append(idx)
                 break
-    sensory_ids = stimulation_ids= array(sensory_ids)
+    # sensory_ids = stimulation_ids = array(sensory_ids)
+    
+    # find stimulation sites (2 neurons with the most connections to motor area neurons)
+    n_motor_connections = zeros_like(sensory_ids)
+    for i,idx in enumerate(sensory_ids):
+        # outgoing synapses for this neuron
+        mask = synapses.i[:] == idx
+        targets = synapses.j[:][mask]
+        n_motor_connections[i] = sum(isin(targets, motor_ids_U)) + sum(isin(targets, motor_ids_D))
+    stimulation_ids = array([sensory_ids[int(argsort(n_motor_connections)[::-1][0])],
+                             sensory_ids[int(argsort(n_motor_connections)[::-1][1])]])
     
     dt_record = 50*ms
     M = StateMonitor(neurons, ['r'], record=False, dt=dt_record)
@@ -360,7 +372,7 @@ def run_one_paramter_set(trial):
     p_A_ltd = trial.suggest_float("A_ltd", 0.7, 4)
     p_C = trial.suggest_float("C", 0, 20)
     p_Lr = trial.suggest_float("Lr", 1e-4, 1e-3)
-    p_tau = trial.suggest_float("Tau", 10, 100)
+    p_tau = trial.suggest_float("Tau", 75, 100)
     
     outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{trial.number}"
     os.makedirs(outdir, exist_ok=True)
