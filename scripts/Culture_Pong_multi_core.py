@@ -76,7 +76,7 @@ N_RUNS = 200
 T_INIT = 30
 N_PARAM_SETS = 1_000
 N_CPU_CORES = 80
-N_NETWORKS_PER_PARAM_SET = 6
+N_NETWORKS_PER_PARAM_SET = 10
 
 # ----------------------- Functions -----------------------
 # --- plot ---

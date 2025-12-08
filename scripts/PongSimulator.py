@@ -10,7 +10,7 @@ class PongSimulator:
 
         # Paddle properties
         self.paddle_width = 5
-        self.paddle_height = 40
+        self.paddle_height = 25
         self.paddle_speed = 0.5 * self.width * self.dt_sim
         self.paddle_y = self.height // 2  # center of the paddle
 
