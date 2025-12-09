@@ -179,7 +179,7 @@ def plot_run(network):
 # --- stimulation ----
 def gameplay_stimulation(network, stim_id, dt_stim):
     # stim_neuron_id = network["stimulation_ids"][stim_id]
-    stim_id = 0 if stim_id <= 3 else 1
+    stim_id = stim_id // 2
     stim_neuron_id = network["stimulation_ids"][stim_id]
     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"]
     network["net"].run(dt_stim*second)
@@ -270,7 +270,10 @@ def create_network(args):
         targets = synapses.j[:][mask]
         n_motor_connections[i] = sum(isin(targets, motor_ids_U)) + sum(isin(targets, motor_ids_D))
     stimulation_ids = array([sensory_ids[int(argsort(n_motor_connections)[::-1][0])],
-                             sensory_ids[int(argsort(n_motor_connections)[::-1][1])]])
+                             sensory_ids[int(argsort(n_motor_connections)[::-1][2])],
+                             sensory_ids[int(argsort(n_motor_connections)[::-1][1])],
+                             sensory_ids[int(argsort(n_motor_connections)[::-1][3])]
+                             ])
     
     dt_record = 50*ms
     M = StateMonitor(neurons, ['r'], record=False, dt=dt_record)
@@ -358,7 +361,7 @@ def run_single_network(args):
     # fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
     # np.savetxt(fname, results, delimiter=",")
     
-    return mean(results[-results.size//4:]) - mean(results[:results.size//4])
+    return mean(results[-results.size//4:]) #mean(results[-results.size//4:]) - mean(results[:results.size//4])
     
 def run_one_paramter_set(trial):
     args_list = []
@@ -368,10 +371,10 @@ def run_one_paramter_set(trial):
     p_tau_slow = trial.suggest_float("tau_slow", 200, 400)
     p_eff = trial.suggest_float("eff", 0.3, 0.8)
     p_readout_acc =  trial.suggest_float("readout_acc", 1e-3, 2e-1)
-    p_W_sum = trial.suggest_float("W_sum", 0.2, 0.95)
+    p_W_sum = trial.suggest_float("W_sum", 0.2, 2.)
     p_A_ltd = trial.suggest_float("A_ltd", 0.7, 4)
     p_C = trial.suggest_float("C", 0, 20)
-    p_Lr = trial.suggest_float("Lr", 1e-4, 1e-3)
+    p_Lr = trial.suggest_float("Lr", 1e-5, 1e-4)
     p_tau = trial.suggest_float("Tau", 75, 100)
     
     outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{trial.number}"
@@ -418,12 +421,12 @@ def run_optimization(_):
         storage=JournalStorage(JournalFileBackend(file_path="./journal.log")),
         load_if_exists=True, # Useful for multi-process or multi-node optimization.
         direction='maximize',
-        pruner=optuna.pruners.PercentilePruner(
-            25.0, 
-            n_startup_trials=N_CPU_CORES, 
-            n_warmup_steps=3,
-            interval_steps=2
-        )
+        # pruner=optuna.pruners.PercentilePruner(
+        #     25.0, 
+        #     n_startup_trials=N_CPU_CORES, 
+        #     n_warmup_steps=3,
+        #     interval_steps=2
+        # )
     )
     study.optimize(run_one_paramter_set, n_trials=N_PARAM_SETS // N_CPU_CORES)
 
