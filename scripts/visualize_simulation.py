@@ -19,7 +19,7 @@ def animate(simulation_state_data):
     axs["Pong"].set_yticks([])
     paddle, = axs["Pong"].plot([], [], 'black', lw=5)
     ball, = axs["Pong"].plot([], [], 'ro', markersize=5)
-    paddle_height = 0.4
+    paddle_height = 0.25
     paddle_y = simulation_state_data["paddle_y"]
     ball_x = simulation_state_data["ball_x"]
     ball_y = simulation_state_data["ball_y"]
@@ -53,6 +53,7 @@ def main():
     
     if game_state_files:
         game_state_path = game_state_files[0]
+        print(f"showing: {game_state_path}")
         simulation_state_data = pd.read_csv(game_state_path)
     else:
         raise FileNotFoundError("No game_states_*.csv file found in the specified folder.")
