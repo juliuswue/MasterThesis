@@ -76,7 +76,7 @@ N_RUNS = 200
 T_INIT = 30
 N_PARAM_SETS = 1_000
 N_CPU_CORES = 80
-N_NETWORKS_PER_PARAM_SET = 10
+N_NETWORKS_PER_PARAM_SET = 5
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -177,11 +177,11 @@ def plot_run(network):
     return fig
 
 # --- stimulation ----
-def gameplay_stimulation(network, stim_id, dt_stim):
+def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
     # stim_neuron_id = network["stimulation_ids"][stim_id]
     stim_id = 0 if stim_id <= 3 else 1
     stim_neuron_id = network["stimulation_ids"][stim_id]
-    network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"]
+    network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"] if ball_x < 0.8 else 0.
     network["net"].run(dt_stim*second)
     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 0
     
@@ -215,14 +215,7 @@ def create_network(args):
     synapses = Synapses(neurons, neurons, eqs_syn, method='euler')
     
     neurons.X = 'rand() * WIDTH'
-    neurons.Y = 'rand() * HEIGHT'
-    
-    synapses.connect(condition='i!=j', p=DEGREE/n_neurons)
-    synapses.w = f'0.05*rand()'
-    for j in range(n_neurons):
-        ids = isin(synapses.j, j)
-        synapses.w[:][ids] = synapses.w[:][ids] / sum(synapses.w[:][ids]) * 0.5
-    
+    neurons.Y = 'rand() * HEIGHT'    
     
     # set neuron parameters
     neurons.U_r0 = args["U_r0"]
@@ -232,14 +225,6 @@ def create_network(args):
     neurons.Tau_slow = args["Tau_slow"]*ms
     neurons.Tau = args["Tau"]*ms
     neurons.u = args["R_0"]
-    
-    # set synapse paramters
-    synapses.Lr = args["Lr"]
-    synapses.W_sum_max = args["W_sum_max"]
-    synapses.C = args["C"]
-    synapses.A_ltd = args["A_ltd"]
-    synapses.R_0 = args["R_0"]*Hz
-    synapses.theta = args["R_0"]*Hz
     
     # set motor and sensory ids
     motor_ids = []
@@ -262,15 +247,40 @@ def create_network(args):
                 break
     # sensory_ids = stimulation_ids = array(sensory_ids)
     
+    synapses.connect(condition='i!=j', p=DEGREE/n_neurons)
     # find stimulation sites (2 neurons with the most connections to motor area neurons)
     n_motor_connections = zeros_like(sensory_ids)
-    for i,idx in enumerate(sensory_ids):
+    for k,idx in enumerate(sensory_ids):
         # outgoing synapses for this neuron
         mask = synapses.i[:] == idx
         targets = synapses.j[:][mask]
-        n_motor_connections[i] = sum(isin(targets, motor_ids_U)) + sum(isin(targets, motor_ids_D))
-    stimulation_ids = array([sensory_ids[int(argsort(n_motor_connections)[::-1][0])],
-                             sensory_ids[int(argsort(n_motor_connections)[::-1][1])]])
+        n_motor_connections[k] = sum(isin(targets, motor_ids_U)) + sum(isin(targets, motor_ids_D))
+        
+    stimulation_ids = array([sensory_ids[int(argsort(n_motor_connections)[0])],
+                             sensory_ids[int(argsort(n_motor_connections)[1])]])
+    
+    for _, idx in enumerate(stimulation_ids):
+        # outgoing synapses for this neuron
+        mask = synapses.i[:] == idx
+        targets = synapses.j[:][mask]
+        if sum(isin(targets, motor_ids_U)) == 0 and motor_ids_U.size > 0:
+            synapses.connect(i=int(idx), j=int(motor_ids_U[randint(0, motor_ids_U.size)]))
+        if sum(isin(targets, motor_ids_D)) == 0 and motor_ids_D.size > 0:
+            synapses.connect(i=int(idx), j=int(motor_ids_D[randint(0, motor_ids_D.size)]))
+            
+    synapses.w = f'0.05*rand()'
+    for j in range(n_neurons):
+        ids = isin(synapses.j, j)
+        synapses.w[:][ids] = synapses.w[:][ids] / sum(synapses.w[:][ids]) * 0.5
+        
+    # set synapse paramters
+    synapses.Lr = args["Lr"]
+    synapses.W_sum_max = args["W_sum_max"]
+    synapses.C = args["C"]
+    synapses.A_ltd = args["A_ltd"]
+    synapses.R_0 = args["R_0"]*Hz
+    synapses.theta = args["R_0"]*Hz
+    
     
     dt_record = 50*ms
     M = StateMonitor(neurons, ['r'], record=False, dt=dt_record)
@@ -318,7 +328,7 @@ def run_single_network(args):
     while n_trials < N_RUNS:
         if game_state == 'running':
             pong_state = simulator.get_simulation()
-            r_U, r_D = gameplay_stimulation(network, pong_state['stim_id'], dt_sim)
+            r_U, r_D = gameplay_stimulation(network, pong_state['stim_id'], pong_state['ball_x'],dt_sim)
             p_U = 1 / (1+exp(clip(-(r_U - r_D) / network["args"]["readout_acc"], -20, 20)))
             if rand() < p_U:
                 game_state = simulator.simulate('up')
@@ -358,27 +368,27 @@ def run_single_network(args):
     # fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
     # np.savetxt(fname, results, delimiter=",")
     
-    return mean(results[-results.size//4:]) - mean(results[:results.size//4])
+    return mean(results[-results.size//4:])
     
 def run_one_paramter_set(trial):
     args_list = []
     
     p_Var = trial.suggest_float("Var", 1e-4, 2e-1)
     p_Sigma = trial.suggest_float("Sigma", 0, 2e-1)
-    p_tau_slow = trial.suggest_float("tau_slow", 200, 400)
-    p_eff = trial.suggest_float("eff", 0.3, 0.8)
+    p_tau_slow = 400 # trial.suggest_float("tau_slow", 200, 400)
+    p_eff = trial.suggest_float("eff", 0.3, 0.7)
     p_readout_acc =  trial.suggest_float("readout_acc", 1e-3, 2e-1)
-    p_W_sum = trial.suggest_float("W_sum", 0.2, 0.95)
-    p_A_ltd = trial.suggest_float("A_ltd", 0.7, 4)
+    p_W_sum = trial.suggest_float("W_sum", 0.2, 1.5)
+    p_A_ltd = trial.suggest_float("A_ltd", 0.7, 6)
     p_C = trial.suggest_float("C", 0, 20)
     p_Lr = trial.suggest_float("Lr", 1e-4, 1e-3)
-    p_tau = trial.suggest_float("Tau", 75, 100)
+    p_tau = 75#trial.suggest_float("Tau", 75, 100)
     
     outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{trial.number}"
     os.makedirs(outdir, exist_ok=True)
     
     
-    for random_seed in range(N_NETWORKS_PER_PARAM_SET):
+    for random_seed in [0, 2, 3, 4]:
         args_list.append(
             {
                 "random_seed": random_seed,
@@ -418,11 +428,10 @@ def run_optimization(_):
         storage=JournalStorage(JournalFileBackend(file_path="./journal.log")),
         load_if_exists=True, # Useful for multi-process or multi-node optimization.
         direction='maximize',
-        pruner=optuna.pruners.PercentilePruner(
-            25.0, 
+        pruner=optuna.pruners.MedianPruner(
             n_startup_trials=N_CPU_CORES, 
-            n_warmup_steps=3,
-            interval_steps=2
+            n_warmup_steps=2,
+            interval_steps=1
         )
     )
     study.optimize(run_one_paramter_set, n_trials=N_PARAM_SETS // N_CPU_CORES)
