@@ -35,19 +35,21 @@ Tau_slow : second (constant)
 '''
 
 eqs_syn = '''
-delta_w = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz
+dw = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz (constant over dt)
+ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * (
-    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.7))
-    - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
+    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5) * int(sum_w_pre < W_sum_max))
+    # - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
 ) : 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
 sum_w_pre = w : 1 (summed)
-Lr : 1
-W_sum_max : 1
-A_ltd : 1
-R_0 : Hz
-C : 1
+Lr : 1 (constant)
+W_sum_max : 1 (constant)
+A_ltd : 1 (constant)
+R_0 : Hz (constant)
+C : 1 (constant)
+Tau_W : second (constant)
 '''
 
 # ----------------------- Parameters -----------------------
@@ -73,10 +75,10 @@ MOTOR_POSITIONS_Y = 80 * mm_per_electrode
 n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
-N_RUNS = 10
-T_INIT = 30
+N_RUNS = 200
+T_INIT = 300
 N_CPU_CORES = 80
-N_NETWORKS_PER_PARAM_SET = 80
+N_NETWORKS_PER_PARAM_SET = N_CPU_CORES
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -280,6 +282,7 @@ def create_network(args):
     synapses.A_ltd = args["A_ltd"]
     synapses.R_0 = args["R_0"]*Hz
     synapses.theta = args["R_0"]*Hz
+    synapses.Tau_W = args["Tau_W"]*ms
     
     
     dt_record = 50*ms
@@ -383,20 +386,22 @@ def run_one_paramter_set():
                 "outdir": outdir,
                 # neuron parameters
                 "U_r0": 1,
-                "Var_ur": 0.19,
-                "Sigma_ur": 0.01,
+                "Var_ur": 0.1883756490352852,
+                "Sigma_ur": 0.010192354846052873,
                 "Tau_slow": 400,
-                "Tau": 75,
+                "Tau": 10,
                 # synapse params
-                "Lr": 0.00028, 
-                "W_sum_max": 0.6, 
-                "A_ltd": 1.1, 
+                "Lr": 0.00021725234919600206 ,
+                "W_sum_max": 1.317973748375118, 
+                "A_ltd": 2.288994822084573, 
                 "R_0": 2,
-                "C": 17.8,
+                "C": 0.,
+                "Tau_W": 100,
                 # set-up params
-                "eff": 0.70,
-                "readout_acc": 0.0025,
-            })
+                "eff": 0.39086607327875256,
+                "readout_acc": 0.009496612139726987,
+            }
+        )
     
     results = []
     
