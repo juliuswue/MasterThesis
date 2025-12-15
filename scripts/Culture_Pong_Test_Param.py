@@ -73,7 +73,7 @@ MOTOR_POSITIONS_Y = 80 * mm_per_electrode
 n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
-N_RUNS = 200
+N_RUNS = 10
 T_INIT = 30
 N_CPU_CORES = 80
 N_NETWORKS_PER_PARAM_SET = 80
@@ -316,8 +316,8 @@ def run_single_network(args):
     
     # run simulation
     results = zeros(N_RUNS)
-    dt_sim = 0.1 #s
-    simulator = PongSimulator(dt_sim)
+    dt_sim = 0.05 #s
+    simulator = PongSimulator(dt_sim, args["random_seed"])
     simulator.reset()
     
     n_trials = 0
@@ -357,12 +357,12 @@ def run_single_network(args):
             #----- save data -----
             f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state}\n")    
         
-    # save run
-    fig = plot_run(network)
-    fname = os.path.join(args["outdir"], f"network_{args['random_seed']}.png")
-    fig.savefig(fname, bbox_inches='tight', dpi=150)
-    plt.close(fig)
-    del fig
+    # # save run
+    # fig = plot_run(network)
+    # fname = os.path.join(args["outdir"], f"network_{args['random_seed']}.png")
+    # fig.savefig(fname, bbox_inches='tight', dpi=150)
+    # plt.close(fig)
+    # del fig
     
     # store results
     fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")

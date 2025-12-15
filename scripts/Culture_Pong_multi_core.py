@@ -34,19 +34,21 @@ Tau_slow : second (constant)
 '''
 
 eqs_syn = '''
-delta_w = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz
+dw = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz (constant over dt)
+ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * (
-    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.7))
-    - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
+    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5) * int(sum_w_pre < W_sum_max))
+    # - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
 ) : 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
 sum_w_pre = w : 1 (summed)
-Lr : 1
-W_sum_max : 1
-A_ltd : 1
-R_0 : Hz
-C : 1
+Lr : 1 (constant)
+W_sum_max : 1 (constant)
+A_ltd : 1 (constant)
+R_0 : Hz (constant)
+C : 1 (constant)
+Tau_W : second (constant)
 '''
 
 # ----------------------- Parameters -----------------------
@@ -73,7 +75,7 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
 N_RUNS = 200
-T_INIT = 30
+T_INIT = 300
 N_PARAM_SETS = 1_000
 N_CPU_CORES = 80
 N_NETWORKS_PER_PARAM_SET = 5
@@ -280,6 +282,7 @@ def create_network(args):
     synapses.A_ltd = args["A_ltd"]
     synapses.R_0 = args["R_0"]*Hz
     synapses.theta = args["R_0"]*Hz
+    synapses.Tau_W = args["Tau_W"]*ms
     
     
     dt_record = 50*ms
@@ -316,8 +319,8 @@ def run_single_network(args):
     
     # run simulation
     results = zeros(N_RUNS)
-    dt_sim = 0.1 #s
-    simulator = PongSimulator(dt_sim)
+    dt_sim = 0.05 #s
+    simulator = PongSimulator(dt_sim, args["random_seed"])
     simulator.reset()
     
     n_trials = 0
@@ -380,9 +383,10 @@ def run_one_paramter_set(trial):
     p_readout_acc =  trial.suggest_float("readout_acc", 1e-3, 2e-1)
     p_W_sum = trial.suggest_float("W_sum", 0.2, 1.5)
     p_A_ltd = trial.suggest_float("A_ltd", 0.7, 6)
-    p_C = trial.suggest_float("C", 0, 20)
+    # p_C = trial.suggest_float("C", 0, 20)
     p_Lr = trial.suggest_float("Lr", 1e-4, 1e-3)
-    p_tau = 75#trial.suggest_float("Tau", 75, 100)
+    p_tau = 10#trial.suggest_float("Tau", 75, 100)
+    p_tau_W = 100
     
     outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{trial.number}"
     os.makedirs(outdir, exist_ok=True)
@@ -404,7 +408,8 @@ def run_one_paramter_set(trial):
                 "W_sum_max": p_W_sum, 
                 "A_ltd": p_A_ltd, 
                 "R_0": 2,
-                "C": p_C,
+                "C": 0.,
+                "Tau_W": p_tau_W,
                 # set-up params
                 "eff": p_eff,
                 "readout_acc": p_readout_acc,
