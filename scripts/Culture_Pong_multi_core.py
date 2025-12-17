@@ -37,8 +37,8 @@ eqs_syn = '''
 dw = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz (constant over dt)
 ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * (
-    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5) * int(sum_w_pre < W_sum_max))
-    # - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
+    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5)) #* int(sum_w_pre < W_sum_max))
+    - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
 ) : 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
@@ -371,7 +371,7 @@ def run_single_network(args):
     # fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
     # np.savetxt(fname, results, delimiter=",")
     
-    return mean(results[-results.size//4:])
+    return mean(results[-results.size//4:]) - mean(results[:results.size//4])
     
 def run_one_paramter_set(trial):
     args_list = []
@@ -383,7 +383,7 @@ def run_one_paramter_set(trial):
     p_readout_acc =  trial.suggest_float("readout_acc", 1e-3, 2e-1)
     p_W_sum = trial.suggest_float("W_sum", 0.2, 1.5)
     p_A_ltd = trial.suggest_float("A_ltd", 0.7, 6)
-    # p_C = trial.suggest_float("C", 0, 20)
+    p_C = trial.suggest_float("C", 0, 20)
     p_Lr = trial.suggest_float("Lr", 1e-4, 1e-3)
     p_tau = 10#trial.suggest_float("Tau", 75, 100)
     p_tau_W = 100
@@ -408,7 +408,7 @@ def run_one_paramter_set(trial):
                 "W_sum_max": p_W_sum, 
                 "A_ltd": p_A_ltd, 
                 "R_0": 2,
-                "C": 0.,
+                "C": p_C,
                 "Tau_W": p_tau_W,
                 # set-up params
                 "eff": p_eff,
