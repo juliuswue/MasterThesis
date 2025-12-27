@@ -382,7 +382,7 @@ def run_one_paramter_set(trial):
     p_eff = 0.5 #trial.suggest_float("eff", 0.3, 0.7)
     p_readout_acc =  trial.suggest_float("readout_acc", 1e-3, 2e-1)
     p_W_sum = trial.suggest_float("W_sum", 0.7, 2.5)
-    p_A_ltd = trial.suggest_float("A_ltd", 0.5, 5)
+    p_A_ltd = 1# trial.suggest_float("A_ltd", 0.5, 5)
     p_C = 0#trial.suggest_float("C", 0, 20)
     p_Lr = 5e-5#  trial.suggest_float("Lr", 1e-4, 1e-5)
     p_tau = 10#trial.suggest_float("Tau", 75, 100)
