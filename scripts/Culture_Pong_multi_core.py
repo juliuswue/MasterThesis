@@ -37,8 +37,8 @@ eqs_syn = '''
 dw = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz (constant over dt)
 ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * (
-    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5)) #* int(sum_w_pre < W_sum_max))
-    - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
+    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5) * int(sum_w_pre < W_sum_max))
+    #- C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
 ) : 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
@@ -371,20 +371,20 @@ def run_single_network(args):
     # fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
     # np.savetxt(fname, results, delimiter=",")
     
-    return mean(results[-results.size//4:]) - mean(results[:results.size//4])
+    return mean(results[-results.size//4:]) #- mean(results[:results.size//4])
     
 def run_one_paramter_set(trial):
     args_list = []
     
     p_Var = trial.suggest_float("Var", 1e-4, 2e-1)
     p_Sigma = trial.suggest_float("Sigma", 0, 2e-1)
-    p_tau_slow = 400 # trial.suggest_float("tau_slow", 200, 400)
-    p_eff = trial.suggest_float("eff", 0.3, 0.7)
+    p_tau_slow = 275 # trial.suggest_float("tau_slow", 200, 400)
+    p_eff = 0.5 #trial.suggest_float("eff", 0.3, 0.7)
     p_readout_acc =  trial.suggest_float("readout_acc", 1e-3, 2e-1)
-    p_W_sum = trial.suggest_float("W_sum", 0.2, 1.5)
-    p_A_ltd = trial.suggest_float("A_ltd", 0.7, 6)
-    p_C = trial.suggest_float("C", 0, 20)
-    p_Lr = trial.suggest_float("Lr", 1e-4, 1e-3)
+    p_W_sum = trial.suggest_float("W_sum", 0.7, 2.5)
+    p_A_ltd = trial.suggest_float("A_ltd", 0.5, 5)
+    p_C = 0#trial.suggest_float("C", 0, 20)
+    p_Lr = 5e-5#  trial.suggest_float("Lr", 1e-4, 1e-5)
     p_tau = 10#trial.suggest_float("Tau", 75, 100)
     p_tau_W = 100
     
@@ -392,7 +392,7 @@ def run_one_paramter_set(trial):
     os.makedirs(outdir, exist_ok=True)
     
     
-    for random_seed in [0, 2, 3, 4]:
+    for random_seed in [0, 2, 3, 4, 1]:
         args_list.append(
             {
                 "random_seed": random_seed,
