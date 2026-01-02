@@ -39,6 +39,8 @@ ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * (
     delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5) * int(sum_w_pre < W_sum_max))
     # - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
+    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5) * int(sum_w_pre < W_sum_max))
+    # - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
 ) : 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
