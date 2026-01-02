@@ -38,9 +38,11 @@ eqs_syn = '''
 dw = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz (constant over dt)
 ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * (
-    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5)) #* int(sum_w_pre < W_sum_max))
-    - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
-) : 1 (clock-driven)
+    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5))
+    )
+    - 1 / DEG * (sum_w_pre - W_sum_max) * int(sum_w_pre > W_sum_max) * int(w > 0.01) * Hz 
+    #- C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
+: 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
 sum_w_pre = w : 1 (summed)
@@ -50,6 +52,7 @@ A_ltd : 1 (constant)
 R_0 : Hz (constant)
 C : 1 (constant)
 Tau_W : second (constant)
+DEG : 1 (constant)
 '''
 
 # ----------------------- Parameters -----------------------
@@ -78,7 +81,7 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 N_RUNS = 200
 T_INIT = 300
 N_CPU_CORES = 8
-N_NETWORKS_PER_PARAM_SET = N_CPU_CORES
+N_NETWORKS_PER_PARAM_SET = 24
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -275,6 +278,11 @@ def create_network(args):
         ids = isin(synapses.j, j)
         synapses.w[:][ids] = synapses.w[:][ids] / sum(synapses.w[:][ids]) * 0.5
         
+    for pre in range(n_neurons):
+        ids = isin(synapses.i, pre)
+        synapses.DEG[:][ids] = sum(ids)
+        synapses.w[:][ids] = synapses.w[:][ids] / sum(synapses.w[:][ids]) * 0.5
+        
     # set synapse paramters
     synapses.Lr = args["Lr"]
     synapses.W_sum_max = args["W_sum_max"]
@@ -382,29 +390,24 @@ def run_one_paramter_set():
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
         args_list.append(
             {
-                "random_seed": random_seed + 24,
+                "random_seed": random_seed+24,
                 "outdir": outdir,
                 # neuron parameters
                 "U_r0": 1,
-                "Var_ur": 0.044120115452969365,
-                "Sigma_ur": 0.021488745130153065,
-                "Var_ur": 0.044120115452969365,
-                "Sigma_ur": 0.021488745130153065,
-                "Tau_slow": 400,
+                "Var_ur": 0.17793759620883354,
+                "Sigma_ur": 0.009582313421207017,
+                "Tau_slow": 275,
                 "Tau": 10,
                 # synapse params
-                "Lr": 0.00042528270144537127,
-                "W_sum_max": 1.4495117365240788, 
-                "A_ltd": 3.35800095620173, 
+                "Lr": 7.486347665581388e-05,
+                "W_sum_max": 1.1396536151514203, 
+                "A_ltd": 2.065992489118898, 
                 "R_0": 2,
-                "C": 8.248319082957472,
-                "C": 8.248319082957472,
+                "C": -1,
                 "Tau_W": 100,
                 # set-up params
-                "eff": 0.3103475861688906,
-                "readout_acc": 0.016294825246188516,
-                "eff": 0.3103475861688906,
-                "readout_acc": 0.016294825246188516,
+                "eff": 0.5,
+                "readout_acc": 0.007567392644133425,
             }
         )
     
