@@ -81,7 +81,7 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 N_RUNS = 200
 T_INIT = 300
 N_CPU_CORES = 8
-N_NETWORKS_PER_PARAM_SET = 24
+N_NETWORKS_PER_PARAM_SET = N_CPU_CORES
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -294,8 +294,8 @@ def create_network(args):
     
     
     dt_record = 50*ms
-    M = StateMonitor(neurons, ['r'], record=False, dt=dt_record)
-    S = StateMonitor(synapses, ['w'], record=False, dt=dt_record)
+    M = StateMonitor(neurons, ['r'], record=True, dt=dt_record)
+    S = StateMonitor(synapses, ['w'], record=True, dt=dt_record)
     
     net = Network(neurons, synapses, M, S)
     
@@ -375,6 +375,45 @@ def run_single_network(args):
     # plt.close(fig)
     # del fig
     
+    # ---- save final synaptic weights ----
+    w_final = network["synapses"].w[:]  # numpy array
+    i = network["synapses"].i[:]
+    j = network["synapses"].j[:]
+
+    df = pd.DataFrame({
+        "pre": i,
+        "post": j,
+        "w": w_final
+    })
+    
+    S = network["S"]
+
+    # S.w shape: (n_synapses, n_timepoints)
+    np.save(os.path.join(args["outdir"],
+                        f"network_{args['random_seed']}_weights_time.npy"),
+            S.w)
+
+    fname = os.path.join(args["outdir"],
+                        f"network_{args['random_seed']}_weights.csv")
+    df.to_csv(fname, index=False)
+    
+    # ---- save neuron IDs (JSON-safe) ----
+    ids = {
+        "motor_ids_U": [int(x) for x in network["motor_ids_U"]],
+        "motor_ids_D": [int(x) for x in network["motor_ids_D"]],
+        "sensory_ids": [int(x) for x in network["sensory_ids"]],
+        "stimulation_ids": [int(x) for x in network["stimulation_ids"]],
+    }
+
+    fname = os.path.join(
+        args["outdir"],
+        f"network_{args['random_seed']}_neuron_ids.json"
+    )
+
+    with open(fname, "w") as f:
+        json.dump(ids, f, indent=4)
+
+    
     # store results
     fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
     np.savetxt(fname, results, delimiter=",")
@@ -390,7 +429,7 @@ def run_one_paramter_set():
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
         args_list.append(
             {
-                "random_seed": random_seed+24,
+                "random_seed": random_seed,
                 "outdir": outdir,
                 # neuron parameters
                 "U_r0": 1,
