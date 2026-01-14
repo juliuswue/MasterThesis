@@ -39,8 +39,8 @@ ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * (
     delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5))
     )
-    - 1 / DEG * (sum_w_pre - W_sum_max) * int(sum_w_pre > W_sum_max) * int(w > 0.01) * Hz 
-    #- C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
+    # - 1 / DEG * (sum_w_pre - W_sum_max) * int(sum_w_pre > W_sum_max) * int(w > 0.01) * Hz 
+    - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
 : 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
@@ -80,8 +80,8 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 N_RUNS = 200
 T_INIT = 300
 N_PARAM_SETS = 1_000
-N_CPU_CORES = 80
-N_NETWORKS_PER_PARAM_SET = 20
+N_CPU_CORES = 8
+N_NETWORKS_PER_PARAM_SET = 5
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -186,6 +186,7 @@ def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
     # stim_neuron_id = network["stimulation_ids"][stim_id]
     stim_id = 0 if stim_id <= 3 else 1
     stim_neuron_id = network["stimulation_ids"][stim_id]
+    # network["net"].run(dt_stim*second)
     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"] if ball_x < 0.8 else 0.
     network["net"].run(dt_stim*second)
     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 0
@@ -211,6 +212,8 @@ def sync_stimulation(network):
     
     for idx in  network["stimulation_ids"]:
         network["neurons"][idx:idx+1].r_ext = 0
+        
+    # network["net"].run(4*second)
 
 # --- network ---
 def create_network(args):
@@ -292,6 +295,10 @@ def create_network(args):
     synapses.theta = args["R_0"]*Hz
     synapses.Tau_W = args["Tau_W"]*ms
     
+    # normalization_code = '''
+    # w -= (1.0 / DEG) * (sum_w_pre - W_sum_max) * int(sum_w_pre > W_sum_max) * int(w > 0.01)
+    # '''
+    # synapses.run_regularly(normalization_code, when='end')
     
     dt_record = 50*ms
     M = StateMonitor(neurons, ['r'], record=False, dt=dt_record)
@@ -384,14 +391,14 @@ def run_single_network(args):
 def run_one_paramter_set(trial):
     args_list = []
     
-    p_Var = trial.suggest_float("Var", 1e-4, 2e-1)
+    p_Var = trial.suggest_float("Var", 1e-4, 5e-1)
     p_Sigma = trial.suggest_float("Sigma", 0, 2e-1)
-    p_tau_slow = 275 # trial.suggest_float("tau_slow", 200, 400)
+    p_tau_slow = 1_400 #trial.suggest_float("tau_slow", 200, 400)
     p_eff = 0.5 #trial.suggest_float("eff", 0.3, 0.7)
-    p_readout_acc =  trial.suggest_float("readout_acc", 1e-3, 2e-1)
-    p_W_sum = trial.suggest_float("W_sum", 0.7, 2.5)
-    p_A_ltd = trial.suggest_float("A_ltd", 0.5, 5)
-    p_C = 0#trial.suggest_float("C", 0, 20)
+    p_readout_acc =  trial.suggest_float("readout_acc", 1e-4, 2e-1)
+    p_W_sum = trial.suggest_float("W_sum", 0.3, 2.5)
+    p_A_ltd = trial.suggest_float("A_ltd", 0.5, 8)
+    p_C = 1./30.#trial.suggest_float("C", 0, 20)
     p_Lr = trial.suggest_float("Lr", 1e-5, 1e-4)
     p_tau = 10#trial.suggest_float("Tau", 75, 100)
     p_tau_W = 100
@@ -442,8 +449,8 @@ def run_optimization(_):
         load_if_exists=True, # Useful for multi-process or multi-node optimization.
         direction='maximize',
         pruner=optuna.pruners.MedianPruner(
-            n_startup_trials=N_CPU_CORES, 
-            n_warmup_steps=5,
+            n_startup_trials=20, 
+            n_warmup_steps=3,
             interval_steps=1
         )
     )

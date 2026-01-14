@@ -41,7 +41,7 @@ dw/dt = Lr * (
     delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5))
     )
     #- 1 / DEG * (sum_w_pre - W_sum_max) * int(sum_w_pre > W_sum_max) * int(w > 0.01) * Hz 
-    #- C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz
+    - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz #! CHANGED
 : 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
@@ -81,7 +81,10 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 N_RUNS = 200
 T_INIT = 300
 N_CPU_CORES = 8
-N_NETWORKS_PER_PARAM_SET = N_CPU_CORES
+N_NETWORKS_PER_PARAM_SET = 16
+
+
+RECORD = False
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -186,6 +189,7 @@ def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
     # stim_neuron_id = network["stimulation_ids"][stim_id]
     stim_id = 0 if stim_id <= 3 else 1
     stim_neuron_id = network["stimulation_ids"][stim_id]
+    # network["net"].run(dt_stim*second)
     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"] if ball_x < 0.8 else 0.
     network["net"].run(dt_stim*second)
     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 0
@@ -294,15 +298,15 @@ def create_network(args):
     
     
     # Apply weight normalization every 10ms
-    normalization_code = '''
-    w -= (1.0 / DEG) * (sum_w_pre - W_sum_max) * int(sum_w_pre > W_sum_max) * int(w > 0.01)
-    '''
-    synapses.run_regularly(normalization_code, when='end')
+    # normalization_code = '''
+    # w -= (1.0 / DEG) * (sum_w_pre - W_sum_max) * int(sum_w_pre > W_sum_max) * int(w > 0.01)
+    # '''
+    # synapses.run_regularly(normalization_code, when='end')
     
     
     dt_record = 50*ms
-    M = StateMonitor(neurons, ['r'], record=True, dt=dt_record)
-    S = StateMonitor(synapses, ['w'], record=True, dt=dt_record)
+    M = StateMonitor(neurons, ['r'], record=RECORD, dt=dt_record)
+    S = StateMonitor(synapses, ['w'], record=RECORD, dt=dt_record)
     
     net = Network(neurons, synapses, M, S)
     
@@ -353,8 +357,10 @@ def run_single_network(args):
                 else:
                     game_state = simulator.simulate('down')
                     
+            #! CHANGED
             elif game_state == 'hit':
                 sync_stimulation(network)
+                # network["net"].run(4*second)
                 results[n_trials] = 1
                 
                 pong_state = simulator.get_simulation()
@@ -373,7 +379,8 @@ def run_single_network(args):
                 raise "unknown game_state {game_state}!"
         
             #----- save data -----
-            f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state}\n")    
+            if RECORD:
+                f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state}\n")    
         
     # # save run
     # fig = plot_run(network)
@@ -383,54 +390,56 @@ def run_single_network(args):
     # del fig
     
     # ---- save final synaptic weights ----
-    w_final = network["synapses"].w[:]  # numpy array
-    i = network["synapses"].i[:]
-    j = network["synapses"].j[:]
+    if RECORD:
+        w_final = network["synapses"].w[:]  # numpy array
+        i = network["synapses"].i[:]
+        j = network["synapses"].j[:]
 
-    df = pd.DataFrame({
-        "pre": i,
-        "post": j,
-        "w": w_final
-    })
-    
-    S = network["S"]
+        df = pd.DataFrame({
+            "pre": i,
+            "post": j,
+            "w": w_final
+        })
+        
+        S = network["S"]
 
-    # S.w shape: (n_synapses, n_timepoints)
-    np.save(os.path.join(args["outdir"],
-                        f"network_{args['random_seed']}_weights_time.npy"),
-            S.w)
+        # S.w shape: (n_synapses, n_timepoints)
+        np.save(os.path.join(args["outdir"],
+                            f"network_{args['random_seed']}_weights_time.npy"),
+                S.w)
 
-    fname = os.path.join(args["outdir"],
-                        f"network_{args['random_seed']}_weights.csv")
-    df.to_csv(fname, index=False)
-    
-    # ---- save neuron IDs (JSON-safe) ----
-    ids = {
-        "motor_ids_U": [int(x) for x in network["motor_ids_U"]],
-        "motor_ids_D": [int(x) for x in network["motor_ids_D"]],
-        "sensory_ids": [int(x) for x in network["sensory_ids"]],
-        "stimulation_ids": [int(x) for x in network["stimulation_ids"]],
-    }
+        fname = os.path.join(args["outdir"],
+                            f"network_{args['random_seed']}_weights.csv")
+        df.to_csv(fname, index=False)
+        
+        # ---- save neuron IDs (JSON-safe) ----
+        ids = {
+            "motor_ids_U": [int(x) for x in network["motor_ids_U"]],
+            "motor_ids_D": [int(x) for x in network["motor_ids_D"]],
+            "sensory_ids": [int(x) for x in network["sensory_ids"]],
+            "stimulation_ids": [int(x) for x in network["stimulation_ids"]],
+        }
 
-    fname = os.path.join(
-        args["outdir"],
-        f"network_{args['random_seed']}_neuron_ids.json"
-    )
+        fname = os.path.join(
+            args["outdir"],
+            f"network_{args['random_seed']}_neuron_ids.json"
+        )
 
-    with open(fname, "w") as f:
-        json.dump(ids, f, indent=4)
+        with open(fname, "w") as f:
+            json.dump(ids, f, indent=4)
 
     
     # store results
     fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
     np.savetxt(fname, results, delimiter=",")
     
-    return mean(results[-results.size//4:])
+    # return mean(results[-results.size//4:])
+    return mean(results[-50:])
     
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{-1}"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{31}"
     os.makedirs(outdir, exist_ok=True)
     
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
@@ -440,20 +449,20 @@ def run_one_paramter_set():
                 "outdir": outdir,
                 # neuron parameters
                 "U_r0": 1,
-                "Var_ur": 0.17793759620883354,
-                "Sigma_ur": 0.009582313421207017,
-                "Tau_slow": 275,
+                "Var_ur": 0.006393191275402726,#0.1
+                "Sigma_ur": 0.0742427979170674, #0.05, #0.034048842562013425,
+                "Tau_slow": 1_400,#1_400 #! CHANGED
                 "Tau": 10,
                 # synapse params
-                "Lr": 7.486347665581388e-05,
-                "W_sum_max": 1.1396536151514203, 
-                "A_ltd": 2.065992489118898, 
+                "Lr": 8e-5, #2e-5
+                "W_sum_max": 1.009174542446842,#1.2557973994944045, 
+                "A_ltd": 23.46975279709848,#3.0412694676273526, 
                 "R_0": 2,
-                "C": -1,
+                "C": 1./30.,
                 "Tau_W": 100,
                 # set-up params
                 "eff": 0.5,
-                "readout_acc": 0.007567392644133425,
+                "readout_acc": 1.049701453712042 * 0.006393191275402726,#0.009233935288461037,
             }
         )
     
