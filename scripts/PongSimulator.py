@@ -1,8 +1,8 @@
 import numpy as np
 
 class PongSimulator:
-    def __init__(self, dt_sim, width=100, height=100):
-        np.random.seed(0)
+    def __init__(self, dt_sim, random_seed, width=100, height=100):
+        self.rng = np.random.default_rng(random_seed)
         self.width = width
         self.height = height
         
@@ -11,7 +11,7 @@ class PongSimulator:
         # Paddle properties
         self.paddle_width = 5
         self.paddle_height = 25
-        self.paddle_speed = 0.5 * self.width * self.dt_sim
+        self.paddle_speed = self.height * self.dt_sim
         self.paddle_y = self.height // 2  # center of the paddle
 
         # Ball properties
@@ -30,9 +30,9 @@ class PongSimulator:
 
     def reset(self):
         self.ball_x = self.width - self.ball_radius * 2
-        self.ball_y = np.random.uniform(low= 2*self.ball_radius, high= self.height - 2 * 2 * self.ball_radius)
-        self.ball_speed_x = - self.paddle_speed / 2
-        self.ball_speed_y = np.random.uniform(low=self.ball_speed_x / 2, high=self.ball_speed_x) * np.random.choice([-1, 1])
+        self.ball_y = self.rng.uniform(low= 2*self.ball_radius, high= self.height - 2 * 2 * self.ball_radius)
+        self.ball_speed_x = - 0.5 * self.width * self.dt_sim
+        self.ball_speed_y = self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
 
         self.paddle_y = self.height / 2  # reset paddle to middle (center-based)
 
@@ -62,13 +62,14 @@ class PongSimulator:
         # Ball collision with right wall
         if self.ball_x + self.ball_radius >= self.width:
             self.ball_speed_x *= -1
-            self.ball_speed_y = np.random.uniform(low=self.ball_speed_x / 2, high=self.ball_speed_x) * np.random.choice([-1, 1])
+            self.ball_speed_y = self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
 
         # Ball collision with paddle (left side)
         if self.ball_x - self.ball_radius <= self.paddle_width:
             if (self.paddle_y - half_h) <= self.ball_y <= (self.paddle_y + half_h):
                 self.ball_speed_x *= -1
                 self.ball_x = self.paddle_width + self.ball_radius  # avoid sticking
+                self.ball_speed_y = self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
                 game_state = 'hit'
             else:
                 game_state = 'miss'
