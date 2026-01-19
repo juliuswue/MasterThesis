@@ -41,7 +41,7 @@ dw/dt = Lr * (
     delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5))
     )
     #- 1 / DEG * (sum_w_pre - W_sum_max) * int(sum_w_pre > W_sum_max) * int(w > 0.01) * Hz 
-    - C * int(sum_w_pre > W_sum_max) * int(w > 0.01) * (sum_w_pre - W_sum_max) * Hz #! CHANGED
+    - 1 / (DEG * C) * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG) * Hz #! CHANGED
 : 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
@@ -79,9 +79,9 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
 N_RUNS = 200
-T_INIT = 300
+T_INIT = 900
 N_CPU_CORES = 8
-N_NETWORKS_PER_PARAM_SET = 16
+N_NETWORKS_PER_PARAM_SET = 10
 
 
 RECORD = False
@@ -125,7 +125,7 @@ def plot_network(network):
     
     stimulation_neurons_info = ''
     for i, idx in enumerate(stimulation_ids):
-        plt.scatter(neurons[idx].X / mmetre, neurons[idx].Y / mmetre, s=20, color='coral', alpha=0.5)
+        plt.scatter(neurons[idx].X / mmetre, neurons[idx].Y / mmetre, s=30, color='coral', alpha=0.5)
         
         #outgoing synapses for this neuron
         mask = synapses.i[:] == idx
@@ -144,6 +144,12 @@ def plot_network(network):
                     color=color, alpha=0.3, linewidth=1.5)
             
         stimulation_neurons_info += f"stim. neuron {i} (id:{idx}): {sum(isin(targets, motor_ids_U))} direct U & {sum(isin(targets, motor_ids_D))} direct D conn.\n"
+        
+    for i, idx in enumerate(motor_ids_U):
+        plt.scatter(neurons[idx].X / mmetre, neurons[idx].Y / mmetre, s=30, color='orchid', alpha=0.5)
+    for i, idx in enumerate(motor_ids_D):
+        plt.scatter(neurons[idx].X / mmetre, neurons[idx].Y / mmetre, s=30, color='dodgerblue', alpha=0.5)
+    
     
     plt.text(0, -1., stimulation_neurons_info, fontsize='x-small')
 
@@ -190,7 +196,7 @@ def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
     stim_id = 0 if stim_id <= 3 else 1
     stim_neuron_id = network["stimulation_ids"][stim_id]
     # network["net"].run(dt_stim*second)
-    network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"] if ball_x < 0.8 else 0.
+    network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"] if ball_x < 0.8 else 0. #! CHANGED
     network["net"].run(dt_stim*second)
     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 0
     
@@ -210,7 +216,7 @@ def random_stimulation(network):
     
 def sync_stimulation(network):
     for idx in network["stimulation_ids"]:
-        network["neurons"][idx:idx+1].r_ext = 100 * network["args"]["eff"]
+        network["neurons"][idx:idx+1].r_ext = 100 * network["args"]["eff"] * 0.5 #! CHANGED
     network["net"].run(0.1*second)
     
     for idx in  network["stimulation_ids"]:
@@ -236,17 +242,6 @@ def create_network(args):
     neurons.u = args["R_0"]
     
     # set motor and sensory ids
-    motor_ids = []
-    for x in MOTOR_POSITIONS_X:
-        mask = ((neurons.X >= x) &
-                (neurons.X <  x + MOTOR_LENGTH) &
-                (neurons.Y >= MOTOR_POSITIONS_Y) &
-                (neurons.Y <  MOTOR_POSITIONS_Y + MOTOR_LENGTH)) 
-        ids = where(mask)[0]       
-        motor_ids.append(ids)
-    motor_ids_U = np.hstack((motor_ids[0],  motor_ids[2]))
-    motor_ids_D = np.hstack((motor_ids[1],  motor_ids[3]))
-        
     sensory_ids = []
     for x,y in zip(SENSORY_POSITIONS_X, SENSORY_POSITIONS_Y):
         ids = argsort(sqrt(pow(neurons.X - x, 2) + pow(neurons.Y - y, 2)))
@@ -254,7 +249,39 @@ def create_network(args):
             if idx not in sensory_ids:
                 sensory_ids.append(idx)
                 break
-    # sensory_ids = stimulation_ids = array(sensory_ids)
+    
+    motor_ids = []
+    n_per_area = 8#round(NEURON_DENSITY * MOTOR_LENGTH**2 * 2)
+    
+    motor_ids_U = np.zeros(n_per_area, dtype=int32) - 1
+    motor_ids_D = np.zeros(n_per_area, dtype=int32) - 1
+    all_motor_ids = []
+    
+    for idx in range(n_per_area):
+        # U
+        _candidate = -1
+        while(_candidate == -1 or _candidate in sensory_ids or _candidate in all_motor_ids):
+            _candidate = randint(n_neurons)
+        motor_ids_U[idx] = _candidate
+        all_motor_ids.append(_candidate)
+        
+        #D
+        _candidate = -1
+        while(_candidate == -1 or _candidate in sensory_ids or _candidate in all_motor_ids):
+            _candidate = randint(n_neurons)
+        motor_ids_D[idx] = _candidate
+        all_motor_ids.append(_candidate)
+        
+    # for x in MOTOR_POSITIONS_X:
+    #     mask = ((neurons.X >= x) &
+    #             (neurons.X <  x + MOTOR_LENGTH) &
+    #             (neurons.Y >= MOTOR_POSITIONS_Y) &
+    #             (neurons.Y <  MOTOR_POSITIONS_Y + MOTOR_LENGTH)) 
+    #     ids = where(mask)[0]       
+    #     motor_ids.append(ids)
+    # motor_ids_U = np.hstack((motor_ids[0],  motor_ids[2]))
+    # motor_ids_D = np.hstack((motor_ids[1],  motor_ids[3]))
+
     
     synapses.connect(condition='i!=j', p=DEGREE/n_neurons)
     # find stimulation sites (2 neurons with the most connections to motor area neurons)
@@ -277,15 +304,15 @@ def create_network(args):
         if sum(isin(targets, motor_ids_D)) == 0 and motor_ids_D.size > 0:
             synapses.connect(i=int(idx), j=int(motor_ids_D[randint(0, motor_ids_D.size)]))
             
-    synapses.w = f'0.05*rand()'
+    synapses.w = f'0.03'
     for j in range(n_neurons):
         ids = isin(synapses.j, j)
-        synapses.w[:][ids] = synapses.w[:][ids] / sum(synapses.w[:][ids]) * 0.5
+        # synapses.w[:][ids] = np.clip(synapses.w[:][ids] / sum(synapses.w[:][ids]) * 0.5, 0.03, 0.1) #!CHANGED
         
     for pre in range(n_neurons):
         ids = isin(synapses.i, pre)
         synapses.DEG[:][ids] = sum(ids)
-        synapses.w[:][ids] = synapses.w[:][ids] / sum(synapses.w[:][ids]) * 0.5
+        # synapses.w[:][ids] = synapses.w[:][ids] / sum(synapses.w[:][ids]) * 0.5
         
     # set synapse paramters
     synapses.Lr = args["Lr"]
@@ -402,11 +429,14 @@ def run_single_network(args):
         })
         
         S = network["S"]
-
-        # S.w shape: (n_synapses, n_timepoints)
         np.save(os.path.join(args["outdir"],
                             f"network_{args['random_seed']}_weights_time.npy"),
                 S.w)
+        
+        M = network["M"]
+        np.save(os.path.join(args["outdir"],
+                            f"network_{args['random_seed']}_rates_time.npy"),
+                M.r)
 
         fname = os.path.join(args["outdir"],
                             f"network_{args['random_seed']}_weights.csv")
@@ -434,38 +464,40 @@ def run_single_network(args):
     np.savetxt(fname, results, delimiter=",")
     
     # return mean(results[-results.size//4:])
-    return mean(results[-50:])
+    return mean(results[-results.size // 4:])
     
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{31}"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{-1}_wsum_0_1"
     os.makedirs(outdir, exist_ok=True)
     
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
         args_list.append(
-            {
+            {   
+                # -1
                 "random_seed": random_seed,
                 "outdir": outdir,
                 # neuron parameters
                 "U_r0": 1,
-                "Var_ur": 0.006393191275402726,#0.1
-                "Sigma_ur": 0.0742427979170674, #0.05, #0.034048842562013425,
-                "Tau_slow": 1_400,#1_400 #! CHANGED
+                "Var_ur": 1./10.,
+                "Sigma_ur": 0.02,
+                "Tau_slow": 800,
                 "Tau": 10,
                 # synapse params
-                "Lr": 8e-5, #2e-5
-                "W_sum_max": 1.009174542446842,#1.2557973994944045, 
-                "A_ltd": 23.46975279709848,#3.0412694676273526, 
+                "Lr": 8e-5 * 2,
+                # "W_sum_max": 1.3,
+                "W_sum_max": 0.125,
+                "A_ltd": 1,
                 "R_0": 2,
-                "C": 1./30.,
+                "C": 3.,
                 "Tau_W": 100,
                 # set-up params
                 "eff": 0.5,
-                "readout_acc": 1.049701453712042 * 0.006393191275402726,#0.009233935288461037,
+                "readout_acc": 1/500,#1/64,
             }
         )
-    
+
     results = []
     
     with Pool(processes=N_CPU_CORES) as pool:
