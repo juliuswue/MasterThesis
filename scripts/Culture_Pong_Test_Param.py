@@ -40,7 +40,6 @@ ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * (
     delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5))
     )
-    #- 1 / DEG * (sum_w_pre - W_sum_max) * int(sum_w_pre > W_sum_max) * int(w > 0.01) * Hz 
     - 1 / (DEG * C) * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG) * Hz #! CHANGED
 : 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
@@ -82,7 +81,6 @@ N_RUNS = 200
 T_INIT = 900
 N_CPU_CORES = 8
 N_NETWORKS_PER_PARAM_SET = 10
-
 
 RECORD = False
 
@@ -469,7 +467,7 @@ def run_single_network(args):
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{-1}_wsum_0_1"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{-1}"
     os.makedirs(outdir, exist_ok=True)
     
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
@@ -486,7 +484,6 @@ def run_one_paramter_set():
                 "Tau": 10,
                 # synapse params
                 "Lr": 8e-5 * 2,
-                # "W_sum_max": 1.3,
                 "W_sum_max": 0.125,
                 "A_ltd": 1,
                 "R_0": 2,
@@ -494,7 +491,7 @@ def run_one_paramter_set():
                 "Tau_W": 100,
                 # set-up params
                 "eff": 0.5,
-                "readout_acc": 1/500,#1/64,
+                "readout_acc": 1/500,
             }
         )
 
