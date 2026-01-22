@@ -18,7 +18,7 @@ from brian2 import *
 # ----------------------- Models -----------------------
 # --- Brian Equations ---
 eqs_neurons = '''
-r = int(u >= 0) * u * Hz : Hz
+r = clip(u, 0, 50) * Hz : Hz #int(u >= 0) * u * Hz : Hz
 dr_slow/dt = 1 / Tau_slow * (-r_slow + r) : Hz
 du/dt = 1 / Tau * (-u + u_syn + u_r + r_ext) : 1
 du_r/dt = - Theta_ur * (u_r - U_r0) + Sigma_ur * xi: 1
@@ -58,7 +58,7 @@ DEG : 1 (constant)
 # --- Culture  ---
 WIDTH = 3.85*mm
 HEIGHT = 2.1*mm
-NEURON_DENSITY = 100 / (WIDTH * HEIGHT)
+NEURON_DENSITY = 500 / (WIDTH * HEIGHT) #250 / (WIDTH * HEIGHT)
 DEGREE = 10
 
 ELECTRODE_COLUMNS = 220
@@ -80,7 +80,7 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 N_RUNS = 200
 T_INIT = 900
 N_CPU_CORES = 8
-N_NETWORKS_PER_PARAM_SET = 10
+N_NETWORKS_PER_PARAM_SET = 8
 
 RECORD = False
 
@@ -191,12 +191,14 @@ def plot_run(network):
 # --- stimulation ----
 def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
     # stim_neuron_id = network["stimulation_ids"][stim_id]
-    stim_id = 0 if stim_id <= 3 else 1
-    stim_neuron_id = network["stimulation_ids"][stim_id]
-    # network["net"].run(dt_stim*second)
-    network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"] if ball_x < 0.8 else 0. #! CHANGED
+    # stim_id = 0 if stim_id <= 3 else 1
+    for k in range(3):
+        stim_neuron_id = network["stimulation_ids"][stim_id*3+k]
+        network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"] if ball_x < 0.8 else 0. #! CHANGED
     network["net"].run(dt_stim*second)
-    network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 0
+    for k in range(3):
+        stim_neuron_id = network["stimulation_ids"][stim_id*3+k]
+        network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 0
     
     r_U = mean([network["neurons"].r[x] for x in network["motor_ids_U"]])
     r_D = mean([network["neurons"].r[x] for x in network["motor_ids_D"]])
@@ -243,13 +245,15 @@ def create_network(args):
     sensory_ids = []
     for x,y in zip(SENSORY_POSITIONS_X, SENSORY_POSITIONS_Y):
         ids = argsort(sqrt(pow(neurons.X - x, 2) + pow(neurons.Y - y, 2)))
-        for idx in ids:
-            if idx not in sensory_ids:
-                sensory_ids.append(idx)
-                break
+        for _ in range(3):
+            for idx in ids:
+                if idx not in sensory_ids:
+                    sensory_ids.append(idx)
+                    break
     
     motor_ids = []
-    n_per_area = 8#round(NEURON_DENSITY * MOTOR_LENGTH**2 * 2)
+    # n_per_area = round(n_neurons * 0.15 / 2)#round(NEURON_DENSITY * MOTOR_LENGTH**2 * 2)
+    n_per_area = round(n_neurons * 0.2 / 2)
     
     motor_ids_U = np.zeros(n_per_area, dtype=int32) - 1
     motor_ids_D = np.zeros(n_per_area, dtype=int32) - 1
@@ -281,7 +285,15 @@ def create_network(args):
     # motor_ids_D = np.hstack((motor_ids[1],  motor_ids[3]))
 
     
-    synapses.connect(condition='i!=j', p=DEGREE/n_neurons)
+    # synapses.connect(condition='i!=j', p=DEGREE/n_neurons)
+    
+    neuron_ids = arange(n_neurons)
+    for idx in range(n_neurons):
+        # pre_ids = choice(neuron_ids[neuron_ids!=idx], size=DEGREE, replace=False)
+        # synapses.connect(i=pre_ids, j=idx)
+        post_ids = choice(neuron_ids[neuron_ids!=idx], size=DEGREE, replace=False)
+        synapses.connect(i=idx, j=post_ids)
+    
     # find stimulation sites (2 neurons with the most connections to motor area neurons)
     n_motor_connections = zeros_like(sensory_ids)
     for k,idx in enumerate(sensory_ids):
@@ -290,19 +302,21 @@ def create_network(args):
         targets = synapses.j[:][mask]
         n_motor_connections[k] = sum(isin(targets, motor_ids_U)) + sum(isin(targets, motor_ids_D))
         
-    stimulation_ids = array([sensory_ids[int(argsort(n_motor_connections)[0])],
-                             sensory_ids[int(argsort(n_motor_connections)[1])]])
+    # stimulation_ids = array([sensory_ids[int(argsort(n_motor_connections)[0])],
+    #                          sensory_ids[int(argsort(n_motor_connections)[1])]])
+    # stimulation_ids = array(sensory_ids[:3*2])
+    stimulation_ids = array(sensory_ids)
     
-    for _, idx in enumerate(stimulation_ids):
-        # outgoing synapses for this neuron
-        mask = synapses.i[:] == idx
-        targets = synapses.j[:][mask]
-        if sum(isin(targets, motor_ids_U)) == 0 and motor_ids_U.size > 0:
-            synapses.connect(i=int(idx), j=int(motor_ids_U[randint(0, motor_ids_U.size)]))
-        if sum(isin(targets, motor_ids_D)) == 0 and motor_ids_D.size > 0:
-            synapses.connect(i=int(idx), j=int(motor_ids_D[randint(0, motor_ids_D.size)]))
+    # for _, idx in enumerate(stimulation_ids):
+    #     # outgoing synapses for this neuron
+    #     mask = synapses.i[:] == idx
+    #     targets = synapses.j[:][mask]
+    #     if sum(isin(targets, motor_ids_U)) == 0 and motor_ids_U.size > 0:
+    #         synapses.connect(i=int(idx), j=int(motor_ids_U[randint(0, motor_ids_U.size)]))
+    #     if sum(isin(targets, motor_ids_D)) == 0 and motor_ids_D.size > 0:
+    #         synapses.connect(i=int(idx), j=int(motor_ids_D[randint(0, motor_ids_D.size)]))
             
-    synapses.w = f'0.03'
+    synapses.w = f'0.05'
     for j in range(n_neurons):
         ids = isin(synapses.j, j)
         # synapses.w[:][ids] = np.clip(synapses.w[:][ids] / sum(synapses.w[:][ids]) * 0.5, 0.03, 0.1) #!CHANGED
@@ -467,7 +481,7 @@ def run_single_network(args):
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{-1}"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_{-1}_500_3perstim_8inputs"
     os.makedirs(outdir, exist_ok=True)
     
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
