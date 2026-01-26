@@ -29,10 +29,10 @@ class PongSimulator:
         
 
     def reset(self):
-        self.ball_x = self.width - self.ball_radius * 2
-        self.ball_y = self.rng.uniform(low= 2*self.ball_radius, high= self.height - 2 * 2 * self.ball_radius)
-        self.ball_speed_x = - 0.5 * self.width * self.dt_sim
-        self.ball_speed_y = self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
+        self.ball_x = self.width - self.ball_radius * 2# 0.8*self.width# - self.ball_radius * 2
+        self.ball_y = self.height / 2 #self.rng.uniform(low= 2*self.ball_radius, high= self.height - 2 * 2 * self.ball_radius)
+        self.ball_speed_x = - self.paddle_speed / 2
+        self.ball_speed_y = self.rng.uniform(low=0., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])# self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
 
         self.paddle_y = self.height / 2  # reset paddle to middle (center-based)
 
