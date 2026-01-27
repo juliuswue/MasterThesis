@@ -1,7 +1,7 @@
 import numpy as np
 
 class PongSimulator:
-    def __init__(self, dt_sim, random_seed, width=100, height=100):
+    def __init__(self, dt_sim, random_seed, width=105, height=100):
         self.rng = np.random.default_rng(random_seed)
         self.width = width
         self.height = height
@@ -29,10 +29,11 @@ class PongSimulator:
         
 
     def reset(self):
-        self.ball_x = self.width - self.ball_radius * 2# 0.8*self.width# - self.ball_radius * 2
+        self.ball_x = self.width - self.ball_radius -0.5 #0.8*self.width# - self.ball_radius * 2
         self.ball_y = self.height / 2 #self.rng.uniform(low= 2*self.ball_radius, high= self.height - 2 * 2 * self.ball_radius)
         self.ball_speed_x = - self.paddle_speed / 2
-        self.ball_speed_y = self.rng.uniform(low=0., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])# self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
+        # self.ball_speed_y = self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
+        self.ball_speed_y = self.rng.uniform(low=-np.abs(self.ball_speed_x), high=np.abs(self.ball_speed_x))
 
         self.paddle_y = self.height / 2  # reset paddle to middle (center-based)
 
@@ -56,7 +57,11 @@ class PongSimulator:
         self.ball_y += self.ball_speed_y
 
         # Ball collision with top or bottom
-        if self.ball_y - self.ball_radius < 0 or self.ball_y + self.ball_radius > self.height:
+        if self.ball_y - self.ball_radius < 0:
+            self.ball_y = self.ball_radius
+            self.ball_speed_y *= -1
+        if self.ball_y + self.ball_radius > self.height:
+            self.ball_y = self.height - self.ball_radius
             self.ball_speed_y *= -1
 
         # Ball collision with right wall

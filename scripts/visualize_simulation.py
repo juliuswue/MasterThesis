@@ -44,20 +44,20 @@ def main():
     
     args = parser.parse_args()
     
-    if not os.path.exists(args.data_dir):
-        print(f"Error: Directory {args.data_dir} does not exist")
-        sys.exit(1)
+    # if not os.path.exists(args.data_dir):
+    #     print(f"Error: Directory {args.data_dir} does not exist")
+    #     sys.exit(1)
     
-    # Find files
-    game_state_files = glob.glob(os.path.join(args.data_dir, "*simulation_states.csv"))
+    # # Find files
+    # game_state_files = glob.glob(os.path.join(args.data_dir, "*simulation_states.csv"))
     
-    if game_state_files:
-        game_state_path = game_state_files[0]
-        print(f"showing: {game_state_path}")
-        simulation_state_data = pd.read_csv(game_state_path)
-    else:
-        raise FileNotFoundError("No game_states_*.csv file found in the specified folder.")
-    
+    # if game_state_files:
+    #     game_state_path = game_state_files[2]
+    #     print(f"showing: {game_state_path}")
+    #     simulation_state_data = pd.read_csv(game_state_path)
+    # else:
+    #     raise FileNotFoundError("No game_states_*.csv file found in the specified folder.")
+    simulation_state_data = pd.read_csv(args.data_dir)
     animate(simulation_state_data)
 
 
