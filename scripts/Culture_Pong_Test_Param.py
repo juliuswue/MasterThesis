@@ -58,7 +58,7 @@ DEG : 1 (constant)
 # --- Culture  ---
 WIDTH = 3.85*mm
 HEIGHT = 2.1*mm
-NEURON_DENSITY = 100 / (WIDTH * HEIGHT)
+NEURON_DENSITY = 200 / (WIDTH * HEIGHT)
 DEGREE = 10
 
 ELECTRODE_COLUMNS = 220
@@ -78,13 +78,13 @@ MOTOR_POSITIONS_Y = 80 * mm_per_electrode
 n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
-N_RUNS = 20
+N_RUNS = 200
 T_INIT = 900
-N_CPU_CORES = 1
-N_NETWORKS_PER_PARAM_SET = 1
+N_CPU_CORES = 8
+N_NETWORKS_PER_PARAM_SET = 8
 
-RECORD = True
-LOAD_WEIGHTS = True
+RECORD = False
+LOAD_WEIGHTS = False
 WEIGHT_PATH = '/Users/juliuswuerzler/Documents/Uni/Master/MasterThesis/results/01_27_11_26_trial_8in_1ps_no_100_nR_0_16M_fd'
 
 # ----------------------- Functions -----------------------
@@ -263,8 +263,8 @@ def create_network(args):
     
     motor_ids = []
     # n_per_area = round(n_neurons * 0.15 / 2)#round(NEURON_DENSITY * MOTOR_LENGTH**2 * 2)
-    # n_per_area = round(n_neurons * 0.2 / 2)
-    n_per_area = round(n_neurons * 0.16 / 2)
+    n_per_area = round(n_neurons * 0.2 / 2)
+    # n_per_area = round(n_neurons * 0.16 / 2)
     # n_per_area = 40
     
     motor_ids_U = np.zeros(n_per_area, dtype=int32) - 1
@@ -524,14 +524,14 @@ def run_single_network(args):
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_8in_1ps_no_100_nR_0_16M_fd"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_8in_1ps_no_200_nR_0_2M_fd"
     os.makedirs(outdir, exist_ok=True)
     
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
         args_list.append(
             {   
                 # -1
-                "random_seed": random_seed+20,
+                "random_seed": random_seed,
                 "outdir": outdir,
                 # neuron parameters
                 "U_r0": 1,
