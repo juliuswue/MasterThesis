@@ -77,6 +77,8 @@ class PongSimulator:
                 self.ball_speed_y = self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
                 game_state = 'hit'
             else:
+                self.ball_speed_x *= -1
+                self.ball_x = self.paddle_width + self.ball_radius  # avoid sticking
                 game_state = 'miss'
 
         return game_state

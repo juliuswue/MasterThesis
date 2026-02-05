@@ -40,7 +40,7 @@ ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * (
     delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5))
     )
-    - 1 / (DEG * C) * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG) * Hz #! CHANGED
+    - 1 / (DEG * C) * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG) * Hz
 : 1 (clock-driven)
 theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
@@ -58,12 +58,12 @@ DEG : 1 (constant)
 # --- Culture  ---
 WIDTH = 3.85*mm
 HEIGHT = 2.1*mm
-NEURON_DENSITY = 200 / (WIDTH * HEIGHT)
+NEURON_DENSITY = 400 / (WIDTH * HEIGHT)
 DEGREE = 10
 
 ELECTRODE_COLUMNS = 220
 ELECTRODE_ROWS = 120
-N_PER_ELECTRODE = 1
+N_PER_ELECTRODE = 3
 
 mm_per_electrode = WIDTH / ELECTRODE_COLUMNS
 
@@ -85,7 +85,9 @@ N_NETWORKS_PER_PARAM_SET = 8
 
 RECORD = False
 LOAD_WEIGHTS = False
-WEIGHT_PATH = '/Users/juliuswuerzler/Documents/Uni/Master/MasterThesis/results/01_27_11_26_trial_8in_1ps_no_100_nR_0_16M_fd'
+WEIGHT_PATH = '/Users/juliuswuerzler/Documents/Uni/Master/MasterThesis/results/WS_8in_3ps_400_nR_02MR_fd'
+
+EXPERIMENT = ""#"NoFB" #"RST"
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -196,8 +198,10 @@ def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
     # stim_id = 0 if stim_id <= 3 else 1
     # stim_id = stim_id // 2
     # if stim_id == 3 or stim_id == 4:
-    if True:
-        # stim_id = 0 if stim_id <= 3 else 1
+    if EXPERIMENT == "RST":
+        network["net"].run(dt_stim*second)
+    else:
+       # stim_id = 0 if stim_id <= 3 else 1
         for k in range(N_PER_ELECTRODE):
             # stim_neuron_id = network["stimulation_ids"][stim_id+k] #! for 3 inputs it has to be 3*stim_id+k 
             stim_neuron_id = network["stimulation_ids"][N_PER_ELECTRODE*stim_id+k]
@@ -207,8 +211,6 @@ def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
             # stim_neuron_id = network["stimulation_ids"][stim_id+k]
             stim_neuron_id = network["stimulation_ids"][N_PER_ELECTRODE*stim_id+k]
             network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 0
-    else:
-        network["net"].run(dt_stim*second)
     
     r_U = mean([network["neurons"].r[x] for x in network["motor_ids_U"]])
     r_D = mean([network["neurons"].r[x] for x in network["motor_ids_D"]])
@@ -216,21 +218,23 @@ def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
     return r_U, r_D
 
 def random_stimulation(network):
-    for idx in network["stimulation_ids"]:
-        network["neurons"][idx:idx+1].r_ext = 5
-    network["net"].run(4*second)
-    
-    for idx in network["stimulation_ids"]:
-        network["neurons"][idx:idx+1].r_ext = 0
-    network["net"].run(4*second)
+    if EXPERIMENT != "RST" and EXPERIMENT !="NoFB":
+        for idx in network["stimulation_ids"]:
+            network["neurons"][idx:idx+1].r_ext = 5
+        network["net"].run(4*second)
+        
+        for idx in network["stimulation_ids"]:
+            network["neurons"][idx:idx+1].r_ext = 0
+        network["net"].run(4*second)
     
 def sync_stimulation(network):
-    for idx in network["stimulation_ids"]:
-        network["neurons"][idx:idx+1].r_ext = 100 * network["args"]["eff"] * 0.5 #! CHANGED
-    network["net"].run(0.1*second)
-    
-    for idx in  network["stimulation_ids"]:
-        network["neurons"][idx:idx+1].r_ext = 0
+    if EXPERIMENT != "RST" and EXPERIMENT !="NoFB":
+        for idx in network["stimulation_ids"]:
+            network["neurons"][idx:idx+1].r_ext = 100 * network["args"]["eff"] * 0.5 #! CHANGED
+        network["net"].run(0.1*second)
+        
+        for idx in  network["stimulation_ids"]:
+            network["neurons"][idx:idx+1].r_ext = 0
 
 # --- network ---
 def create_network(args):
@@ -263,9 +267,9 @@ def create_network(args):
     
     motor_ids = []
     # n_per_area = round(n_neurons * 0.15 / 2)#round(NEURON_DENSITY * MOTOR_LENGTH**2 * 2)
+    # n_per_area = round(n_neurons * 0.2 / 2)
     n_per_area = round(n_neurons * 0.2 / 2)
-    # n_per_area = round(n_neurons * 0.16 / 2)
-    # n_per_area = 40
+    # n_per_area = 8
     
     motor_ids_U = np.zeros(n_per_area, dtype=int32) - 1
     motor_ids_D = np.zeros(n_per_area, dtype=int32) - 1
@@ -299,54 +303,48 @@ def create_network(args):
     
     # synapses.connect(condition='i!=j', p=DEGREE/n_neurons)
     
-    # neuron_ids = arange(n_neurons)
-    # for idx in range(n_neurons):
-    #     pre_ids = choice(neuron_ids[neuron_ids!=idx], size=DEGREE, replace=False)
-    #     synapses.connect(i=pre_ids, j=idx)
-    #     # post_ids = choice(neuron_ids[neuron_ids!=idx], size=DEGREE, replace=False)
-    #     # synapses.connect(i=idx, j=post_ids)
+    # FIX INDEGREE
+    neuron_ids = arange(n_neurons)
+    for idx in range(n_neurons):
+        pre_ids = choice(neuron_ids[neuron_ids!=idx], size=DEGREE, replace=False)
+        synapses.connect(i=pre_ids, j=idx)
+        # post_ids = choice(neuron_ids[neuron_ids!=idx], size=DEGREE, replace=False)
+        # synapses.connect(i=idx, j=post_ids)
     
     # stimulation_ids = array([sensory_ids[int(argsort(n_motor_connections)[0])],
     #                          sensory_ids[int(argsort(n_motor_connections)[1])]])
     # stimulation_ids = array(sensory_ids[:3*2])
     stimulation_ids = array(sensory_ids)
     
-    neuron_ids = arange(n_neurons)
-    for idx in range(n_neurons):
-        if idx in all_motor_ids:
-            pre_ids = choice(neuron_ids[(neuron_ids!=idx) & ~(isin(neuron_ids, stimulation_ids))], size=DEGREE, replace=False)
-            synapses.connect(i=pre_ids, j=idx)
-        elif idx in stimulation_ids:
-            pre_ids = choice(neuron_ids[(neuron_ids!=idx) & ~(isin(neuron_ids, stimulation_ids))], size=DEGREE, replace=False)
-            synapses.connect(i=pre_ids, j=idx)
-        else:
-            pre_ids = choice(neuron_ids[neuron_ids!=idx], size=DEGREE, replace=False)
-            synapses.connect(i=pre_ids, j=idx)
-    
-    # # find stimulation sites (2 neurons with the most connections to motor area neurons)
-    # n_motor_connections = zeros_like(sensory_ids)
-    # for k,idx in enumerate(sensory_ids):
+    # # AVOID BAD CONNECTIONS
+    # neuron_ids = arange(n_neurons)
+    # for idx in range(n_neurons):
+    #     if idx in all_motor_ids:
+    #         pre_ids = choice(neuron_ids[(neuron_ids!=idx) & ~(isin(neuron_ids, stimulation_ids))], size=DEGREE, replace=False)
+    #         synapses.connect(i=pre_ids, j=idx)
+    #     elif idx in stimulation_ids:
+    #         pre_ids = choice(neuron_ids[(neuron_ids!=idx) & ~(isin(neuron_ids, stimulation_ids))], size=DEGREE, replace=False)
+    #         synapses.connect(i=pre_ids, j=idx)
+    #     else:
+    #         pre_ids = choice(neuron_ids[neuron_ids!=idx], size=DEGREE, replace=False)
+    #         synapses.connect(i=pre_ids, j=idx)
+        
+    # # MIN 1 CONN
+    # selected_motor_ids = []
+    # for _, idx in enumerate(stimulation_ids):
     #     # outgoing synapses for this neuron
     #     mask = synapses.i[:] == idx
     #     targets = synapses.j[:][mask]
-    #     n_motor_connections[k] = sum(isin(targets, motor_ids_U)) + sum(isin(targets, motor_ids_D))
-        
-    
-    selected_motor_ids = []
-    for _, idx in enumerate(stimulation_ids):
-        # outgoing synapses for this neuron
-        mask = synapses.i[:] == idx
-        targets = synapses.j[:][mask]
-        if sum(isin(targets, motor_ids_U)) == 0 and motor_ids_U.size > 0:
-            # synapses.connect(i=int(idx), j=int(motor_ids_U[randint(0, motor_ids_U.size)]))
-            post_id = choice(motor_ids_U[~isin(motor_ids_U, selected_motor_ids)], size=1, replace=False)
-            synapses.connect(i=int(idx), j=post_id)
-            selected_motor_ids.append(post_id)
-        if sum(isin(targets, motor_ids_D)) == 0 and motor_ids_D.size > 0:
-            # synapses.connect(i=int(idx), j=int(motor_ids_D[randint(0, motor_ids_D.size)]))
-            post_id = choice(motor_ids_D[~isin(motor_ids_D, selected_motor_ids)], size=1, replace=False)
-            synapses.connect(i=int(idx), j=post_id)
-            selected_motor_ids.append(post_id)
+    #     if sum(isin(targets, motor_ids_U)) == 0 and motor_ids_U.size > 0:
+    #         # synapses.connect(i=int(idx), j=int(motor_ids_U[randint(0, motor_ids_U.size)]))
+    #         post_id = choice(motor_ids_U[~isin(motor_ids_U, selected_motor_ids)], size=1, replace=False)
+    #         synapses.connect(i=int(idx), j=post_id)
+    #         selected_motor_ids.append(post_id)
+    #     if sum(isin(targets, motor_ids_D)) == 0 and motor_ids_D.size > 0:
+    #         # synapses.connect(i=int(idx), j=int(motor_ids_D[randint(0, motor_ids_D.size)]))
+    #         post_id = choice(motor_ids_D[~isin(motor_ids_D, selected_motor_ids)], size=1, replace=False)
+    #         synapses.connect(i=int(idx), j=post_id)
+    #         selected_motor_ids.append(post_id)
             
     synapses.w = f'0.05'
     for j in range(n_neurons):
@@ -391,7 +389,7 @@ def create_network(args):
                 synapses.w[:] = loaded_data['w']
                 print("Weights sucessfully loaded!")
         
-                net.run(T_INIT*second // 10)
+                # net.run(T_INIT*second // 10)
                 break
     else:
         net.run(T_INIT*second)
@@ -453,7 +451,8 @@ def run_single_network(args):
                 random_stimulation(network)
                 results[n_trials] = 0
                 
-                simulator.reset()
+                if EXPERIMENT !="NoFB":
+                    simulator.reset()
                 pong_state = simulator.get_simulation()
                 game_state = 'running'
                 n_trials += 1
@@ -461,8 +460,8 @@ def run_single_network(args):
                 raise "unknown game_state {game_state}!"
         
             #----- save data -----
-            if RECORD:
-                f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state}\n")    
+            # if RECORD:
+            f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state}\n")    
         
     # # save run
     # fig = plot_run(network)
@@ -470,6 +469,19 @@ def run_single_network(args):
     # fig.savefig(fname, bbox_inches='tight', dpi=150)
     # plt.close(fig)
     # del fig
+    
+    w_final = network["synapses"].w[:]  # numpy array
+    i = network["synapses"].i[:]
+    j = network["synapses"].j[:]
+
+    df = pd.DataFrame({
+        "pre": i,
+        "post": j,
+        "w": w_final
+    })
+    fname = os.path.join(args["outdir"],
+                            f"network_{args['random_seed']}_weights.csv")
+    df.to_csv(fname, index=False)
     
     # ---- save final synaptic weights ----
     if RECORD:
@@ -524,8 +536,85 @@ def run_single_network(args):
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_8in_1ps_no_200_nR_0_2M_fd"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_8in_6ps_600_nR_02MR_fd"
     os.makedirs(outdir, exist_ok=True)
+    
+    # for random_seed in range(N_NETWORKS_PER_PARAM_SET):
+    #     args_list.append(
+    #         {   
+    #             # -1
+    #             "random_seed": random_seed,
+    #             "outdir": outdir,
+    #             # neuron parameters
+    #             "U_r0": 1,
+    #             "Var_ur": 1./10.,
+    #             "Sigma_ur": 0.02,
+    #             "Tau_slow": 800,
+    #             "Tau": 10,
+    #             # synapse params
+    #             "Lr": 8e-5 * 2,
+    #             "W_sum_max": 0.125,
+    #             "A_ltd": 1,
+    #             "R_0": 2,
+    #             "C": 3.,
+    #             "Tau_W": 100,
+    #             # set-up params
+    #             "eff": 0.5,
+    #             "readout_acc": 1/500,
+    #         }
+    #     )
+    
+    # # 143
+    # for random_seed in range(N_NETWORKS_PER_PARAM_SET):
+    #     args_list.append(
+    #         {   
+    #             # -1
+    #             "random_seed": random_seed,
+    #             "outdir": outdir,
+    #             # neuron parameters
+    #             "U_r0": 1,
+    #             "Var_ur": 0.31315030420312306,
+    #             "Sigma_ur": 0.017176857843336855,
+    #             "Tau_slow": 430.7254014127252,
+    #             "Tau": 10,
+    #             # synapse params
+    #             "Lr": 0.00018798127730464484,
+    #             "W_sum_max": 0.25374440915578556,
+    #             "A_ltd": 1,
+    #             "R_0": 2,
+    #             "C": 3.,
+    #             "Tau_W": 100,
+    #             # set-up params
+    #             "eff": 0.5,
+    #             "readout_acc": 0.01620895261856791,
+    #         }
+    #     )
+    
+    # # 209
+    # for random_seed in range(N_NETWORKS_PER_PARAM_SET):
+    #     args_list.append(
+    #         {   
+    #             # -1
+    #             "random_seed": random_seed + 10,
+    #             "outdir": outdir,
+    #             # neuron parameters
+    #             "U_r0": 1,
+    #             "Var_ur": 0.3886084849154443,
+    #             "Sigma_ur": 0.024120088203061066,
+    #             "Tau_slow": 460.76724312424335,
+    #             "Tau": 10,
+    #             # synapse params
+    #             "Lr": 0.0001996568486704836,
+    #             "W_sum_max": 0.11314961900231685,
+    #             "A_ltd": 1,
+    #             "R_0": 2,
+    #             "C": 3.,
+    #             "Tau_W": 100,
+    #             # set-up params
+    #             "eff": 0.5,
+    #             "readout_acc": 0.003101130037152416,
+    #         }
+    #     )
     
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
         args_list.append(
@@ -535,20 +624,20 @@ def run_one_paramter_set():
                 "outdir": outdir,
                 # neuron parameters
                 "U_r0": 1,
-                "Var_ur": 1./10.,
-                "Sigma_ur": 0.02,
-                "Tau_slow": 800,
+                "Var_ur": 0.4,
+                "Sigma_ur": 0.025,
+                "Tau_slow": 450,
                 "Tau": 10,
                 # synapse params
-                "Lr": 8e-5 * 2,
-                "W_sum_max": 0.125,
+                "Lr": 2e-4,
+                "W_sum_max": 0.12,
                 "A_ltd": 1,
                 "R_0": 2,
                 "C": 3.,
                 "Tau_W": 100,
                 # set-up params
                 "eff": 0.5,
-                "readout_acc": 1/500,
+                "readout_acc": 0.003,
             }
         )
 
