@@ -35,7 +35,7 @@ def animate(simulation_state_data):
         ball.set_data([ball_x[frame]], [ball_y[frame]])
         state_text.set_text(f'{simulation_state_data["trial"][frame]} - {simulation_state_data["pong_state"][frame]}')
         
-    ani = FuncAnimation(fig=fig, func=update, frames=len(simulation_state_data["pong_state"]), interval=20, repeat=False)
+    ani = FuncAnimation(fig=fig, func=update, frames=len(simulation_state_data["pong_state"]), interval=50, repeat=False)
     plt.show()
 
 def main():     

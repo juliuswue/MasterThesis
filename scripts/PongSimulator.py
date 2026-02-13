@@ -11,8 +11,10 @@ class PongSimulator:
         # Paddle properties
         self.paddle_width = 5
         self.paddle_height = 25
-        self.paddle_speed = self.height * self.dt_sim
+        self.max_paddle_speed = self.height * dt_sim * 0.75
         self.paddle_y = self.height // 2  # center of the paddle
+        self.paddle_vel = 0
+        self.paddle_acc = self.height * dt_sim * 0.125#1.5  # acceleration per step
 
         # Ball properties
         self.ball_radius = 2.5
@@ -26,31 +28,40 @@ class PongSimulator:
         
         self.max_neg_dist = min_ball_y - max_paddle_y
         self.max_pos_dist = max_ball_y - min_paddle_y
-        
 
     def reset(self):
-        self.ball_x = self.width - self.ball_radius -0.5 #0.8*self.width# - self.ball_radius * 2
-        self.ball_y = self.height / 2 #self.rng.uniform(low= 2*self.ball_radius, high= self.height - 2 * 2 * self.ball_radius)
-        self.ball_speed_x = - self.paddle_speed / 2
-        # self.ball_speed_y = self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
+        self.ball_x = self.width - self.ball_radius - 0.5
+        self.ball_y = self.height / 2
+        self.ball_speed_x = - self.height * self.dt_sim * 0.5
         self.ball_speed_y = self.rng.uniform(low=-np.abs(self.ball_speed_x), high=np.abs(self.ball_speed_x))
-
-        self.paddle_y = self.height / 2  # reset paddle to middle (center-based)
+        
+        self.paddle_y = self.height / 2
+        self.paddle_vel = 0
 
     def simulate(self, action):
         game_state = 'running'
 
-        # Move paddle
+        # Paddle acceleration based on action
         if action == 'up':
-            self.paddle_y += self.paddle_speed
+            self.paddle_vel += self.paddle_acc
         elif action == 'down':
-            self.paddle_y -= self.paddle_speed
-        else:
-            self.paddle_y = self.paddle_y
+            self.paddle_vel -= self.paddle_acc
+        # else: no acceleration
 
-        # Clamp paddle position (center-based)
+        # Limit paddle speed
+        self.paddle_vel = np.clip(self.paddle_vel, -self.max_paddle_speed, self.max_paddle_speed)
+
+        # Move paddle
+        self.paddle_y += self.paddle_vel
+
+        # Clamp paddle position and reset velocity if hitting boundary
         half_h = self.paddle_height // 2
-        self.paddle_y = max(half_h, min(self.height - half_h, self.paddle_y))
+        if self.paddle_y < half_h:
+            self.paddle_y = half_h
+            self.paddle_vel = 0
+        elif self.paddle_y > self.height - half_h:
+            self.paddle_y = self.height - half_h
+            self.paddle_vel = 0
 
         # Move ball
         self.ball_x += self.ball_speed_x
@@ -67,14 +78,13 @@ class PongSimulator:
         # Ball collision with right wall
         if self.ball_x + self.ball_radius >= self.width:
             self.ball_speed_x *= -1
-            self.ball_speed_y = self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
+            self.ball_speed_y = self.rng.uniform(low=-np.abs(self.ball_speed_x), high=np.abs(self.ball_speed_x))
 
         # Ball collision with paddle (left side)
         if self.ball_x - self.ball_radius <= self.paddle_width:
             if (self.paddle_y - half_h) <= self.ball_y <= (self.paddle_y + half_h):
                 self.ball_speed_x *= -1
                 self.ball_x = self.paddle_width + self.ball_radius  # avoid sticking
-                self.ball_speed_y = self.rng.uniform(low=np.abs(self.ball_speed_x) / 3., high=np.abs(self.ball_speed_x)) * self.rng.choice([-1, 1])
                 game_state = 'hit'
             else:
                 self.ball_speed_x *= -1

@@ -18,8 +18,8 @@ from brian2 import *
 # ----------------------- Models -----------------------
 # --- Brian Equations ---
 eqs_neurons = '''
-r = clip(u, 0, 50) * Hz : Hz #int(u >= 0) * u * Hz : Hz
-dr_slow/dt = 1 / Tau_slow * (-r_slow + r) : Hz
+r = clip(u, 0, 100) * Hz : Hz #int(u >= 0) * u * Hz : Hz
+dr_slow/dt = 1 / Tau_slow * (-r_slow + r**2) : Hz**2 # !CHANGED
 du/dt = 1 / Tau * (-u + u_syn + u_r + r_ext) : 1
 du_r/dt = - Theta_ur * (u_r - U_r0) + Sigma_ur * xi: 1
 r_ext : 1
@@ -37,12 +37,14 @@ Tau_slow : second (constant)
 eqs_syn = '''
 dw = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz (constant over dt)
 ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
-dw/dt = Lr * (
-    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5))
-    )
-    - 1 / (DEG * C) * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG) * Hz
+dw/dt = clip(
+    Lr * (
+        delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5))
+        ),
+        -1e-3, 1e-3)
+    - 1 / C * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG) * Hz
 : 1 (clock-driven)
-theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
+theta = r_slow_post/ R_0 : Hz (constant over dt)  # !CHANGED
 u_syn_post = w * r_pre / Hz : 1 (summed)
 sum_w_pre = w : 1 (summed)
 Lr : 1 (constant)
@@ -78,14 +80,14 @@ MOTOR_POSITIONS_Y = 80 * mm_per_electrode
 n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
-N_RUNS = 10
+N_RUNS = 200
 T_INIT = 900
 N_CPU_CORES = 1
 N_NETWORKS_PER_PARAM_SET = 1
 
-RECORD = True
+RECORD = False
 LOAD_WEIGHTS = True
-WEIGHT_PATH = '/Users/juliuswuerzler/Documents/Uni/Master/MasterThesis/results/8in_3ps_400_nR_02MR_fd'
+WEIGHT_PATH = '/Users/juliuswuerzler/Documents/Uni/Master/MasterThesis/results/WS_02_06_20_10'
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -201,7 +203,7 @@ def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
         for k in range(N_PER_ELECTRODE):
             # stim_neuron_id = network["stimulation_ids"][stim_id+k] #! for 3 inputs it has to be 3*stim_id+k 
             stim_neuron_id = network["stimulation_ids"][N_PER_ELECTRODE*stim_id+k]
-            network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"] if ball_x < 1.0 else 0. #! CHANGED
+            network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 10 if ball_x < 1.0 else 0. #! CHANGED #20 * network["args"]["eff"] if ball_x < 1.0 else 0. #! CHANGED
         network["net"].run(dt_stim*second)
         for k in range(N_PER_ELECTRODE):
             # stim_neuron_id = network["stimulation_ids"][stim_id+k]
@@ -226,7 +228,7 @@ def random_stimulation(network):
     
 def sync_stimulation(network):
     for idx in network["stimulation_ids"]:
-        network["neurons"][idx:idx+1].r_ext = 100 * network["args"]["eff"] * 0.5 #! CHANGED
+        network["neurons"][idx:idx+1].r_ext = network["args"]["eff"]#100 * network["args"]["eff"] * 0.5 #! CHANGED
     network["net"].run(0.1*second)
     
     for idx in  network["stimulation_ids"]:
@@ -519,13 +521,14 @@ def run_one_paramter_set(trial):
     
     p_Var = trial.suggest_float("Var", 1e-4, 5e-1)
     p_Sigma = trial.suggest_float("Sigma", 0, 2e-1)
-    p_tau_slow = trial.suggest_float("tau_slow", 400, 1200)
-    p_eff = 0.5 #trial.suggest_float("eff", 0.3, 0.7)
-    p_readout_acc =  trial.suggest_float("readout_acc", 1e-4, 2e-1)
-    p_W_sum = trial.suggest_float("W_sum", 0.08, 0.3)
+    p_tau_slow = trial.suggest_float("tau_slow", 800, 2000)
+    # p_eff = 0.5 #trial.suggest_float("eff", 0.3, 0.7)
+    p_eff = trial.suggest_int("eff", 20, 40)
+    p_readout_acc =  trial.suggest_float("readout_acc", 1e-3, 1e-2)
+    p_W_sum = trial.suggest_float("W_sum", 0.1, 0.25)
     p_A_ltd = 1#trial.suggest_float("A_ltd", 0.5, 8)
-    p_C = 3.,#trial.suggest_float("C", 0, 20)
-    p_Lr = trial.suggest_float("Lr", 1e-4, 1e-3)
+    p_C = 30.,#trial.suggest_float("C", 0, 20)
+    p_Lr = trial.suggest_float("Lr", 1e-4, 5e-4)
     p_tau = 10#trial.suggest_float("Tau", 75, 100)
     p_tau_W = 100
     
@@ -587,10 +590,11 @@ def run_optimization():
     study.enqueue_trial({
         "Var": 1./10.,
         "Sigma": 0.02,
-        "tau_slow": 800,
+        "tau_slow": 1_000,
         "readout_acc": 1/500,
         "W_sum": 0.125,
         "Lr": 8e-5 * 2,
+        "eff": 25
     })
     
     study.optimize(run_one_paramter_set, n_trials=1000)

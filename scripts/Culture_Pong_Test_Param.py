@@ -18,8 +18,8 @@ from brian2 import *
 # ----------------------- Models -----------------------
 # --- Brian Equations ---
 eqs_neurons = '''
-r = clip(u, 0, 50) * Hz : Hz #int(u >= 0) * u * Hz : Hz
-dr_slow/dt = 1 / Tau_slow * (-r_slow + r) : Hz
+r = clip(u, 0, 100) * Hz : Hz #int(u >= 0) * u * Hz : Hz
+dr_slow/dt = 1 / Tau_slow * (-r_slow + r**2) : Hz*Hz
 du/dt = 1 / Tau * (-u + u_syn + u_r + r_ext) : 1
 du_r/dt = - Theta_ur * (u_r - U_r0) + Sigma_ur * xi: 1
 r_ext : 1
@@ -37,12 +37,14 @@ Tau_slow : second (constant)
 eqs_syn = '''
 dw = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz (constant over dt)
 ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
-dw/dt = Lr * (
-    delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5))
-    )
-    - 1 / (DEG * C) * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG) * Hz
+dw/dt = clip(
+    Lr * (
+        delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) * A_ltd + int(delta_w > 0*Hz) * int(w < 0.5))
+        ),
+        -100*Lr*Hz, 100*Lr*Hz)
+    - 1 / C * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG) * Hz
 : 1 (clock-driven)
-theta = (r_slow_post)**2 / R_0 : Hz (constant over dt)
+theta = r_slow_post / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre / Hz : 1 (summed)
 sum_w_pre = w : 1 (summed)
 Lr : 1 (constant)
@@ -80,14 +82,14 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 # --- Experiemnt ---
 N_RUNS = 200
 T_INIT = 900
-N_CPU_CORES = 8
-N_NETWORKS_PER_PARAM_SET = 8
+N_CPU_CORES = 40
+N_NETWORKS_PER_PARAM_SET = 40
 
 RECORD = False
 LOAD_WEIGHTS = False
-WEIGHT_PATH = '/Users/juliuswuerzler/Documents/Uni/Master/MasterThesis/results/WS_8in_3ps_400_nR_02MR_fd'
+WEIGHT_PATH = '/Users/juliuswuerzler/Documents/Uni/Master/MasterThesis/results/WS_02_06_20_10'
 
-EXPERIMENT = ""#"NoFB" #"RST"
+EXPERIMENT = "RST"#"ONLYRSTFB"#"NoFB" #"RST"
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -205,7 +207,16 @@ def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
         for k in range(N_PER_ELECTRODE):
             # stim_neuron_id = network["stimulation_ids"][stim_id+k] #! for 3 inputs it has to be 3*stim_id+k 
             stim_neuron_id = network["stimulation_ids"][N_PER_ELECTRODE*stim_id+k]
-            network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 20 * network["args"]["eff"] if ball_x < 1.0 else 0. #! CHANGED
+            # network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 10 if ball_x < 1.0 else 0. #! CHANGED
+            network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = (1- (ball_x - 0.11)/(1-0.11)) * 6 + 4 #! CHANGED
+            # if ball_x < 0.25:
+            #     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 10
+            # elif ball_x < 0.5:
+            #     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 7.5
+            # elif ball_x < 0.75:
+            #     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 5
+            # else:
+            #     network["neurons"][stim_neuron_id:stim_neuron_id+1].r_ext = 2.5
         network["net"].run(dt_stim*second)
         for k in range(N_PER_ELECTRODE):
             # stim_neuron_id = network["stimulation_ids"][stim_id+k]
@@ -218,7 +229,7 @@ def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
     return r_U, r_D
 
 def random_stimulation(network):
-    if EXPERIMENT != "RST" and EXPERIMENT !="NoFB":
+    if EXPERIMENT != "RST" and EXPERIMENT !="NoFB" and EXPERIMENT != "ONLYRSTFB":
         for idx in network["stimulation_ids"]:
             network["neurons"][idx:idx+1].r_ext = 5
         network["net"].run(4*second)
@@ -228,9 +239,9 @@ def random_stimulation(network):
         network["net"].run(4*second)
     
 def sync_stimulation(network):
-    if EXPERIMENT != "RST" and EXPERIMENT !="NoFB":
+    if EXPERIMENT != "RST" and EXPERIMENT !="NoFB" and EXPERIMENT != "ONLYRSTFB":
         for idx in network["stimulation_ids"]:
-            network["neurons"][idx:idx+1].r_ext = 100 * network["args"]["eff"] * 0.5 #! CHANGED
+            network["neurons"][idx:idx+1].r_ext = network["args"]["eff"]#20 #100 * network["args"]["eff"] * 0.5 #! CHANGED
         network["net"].run(0.1*second)
         
         for idx in  network["stimulation_ids"]:
@@ -308,8 +319,6 @@ def create_network(args):
     for idx in range(n_neurons):
         pre_ids = choice(neuron_ids[neuron_ids!=idx], size=DEGREE, replace=False)
         synapses.connect(i=pre_ids, j=idx)
-        # post_ids = choice(neuron_ids[neuron_ids!=idx], size=DEGREE, replace=False)
-        # synapses.connect(i=idx, j=post_ids)
     
     # stimulation_ids = array([sensory_ids[int(argsort(n_motor_connections)[0])],
     #                          sensory_ids[int(argsort(n_motor_connections)[1])]])
@@ -420,7 +429,7 @@ def run_single_network(args):
     
     # run simulation
     results = zeros(N_RUNS)
-    dt_sim = 0.05 #s
+    dt_sim = 0.1 #! CHANGED 
     simulator = PongSimulator(dt_sim, args["random_seed"])
     simulator.reset()
     
@@ -536,7 +545,7 @@ def run_single_network(args):
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_8in_6ps_600_nR_02MR_fd"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_NT_OLDTP_Var02_300s_30Hz_yEnc_RST"
     os.makedirs(outdir, exist_ok=True)
     
     # for random_seed in range(N_NETWORKS_PER_PARAM_SET):
@@ -616,28 +625,53 @@ def run_one_paramter_set():
     #         }
     #     )
     
+    # for random_seed in range(N_NETWORKS_PER_PARAM_SET):
+    #     args_list.append(
+    #         {   
+    #             # -1
+    #             "random_seed": random_seed,
+    #             "outdir": outdir,
+    #             # neuron parameters
+    #             "U_r0": 1,
+    #             "Var_ur": 0.4,
+    #             "Sigma_ur": 0.025,
+    #             "Tau_slow": 450,
+    #             "Tau": 10,
+    #             # synapse params
+    #             "Lr": 2e-4,
+    #             "W_sum_max": 0.12,
+    #             "A_ltd": 1,
+    #             "R_0": 2,
+    #             "C": 3.,
+    #             "Tau_W": 100,
+    #             # set-up params
+    #             "eff": 0.5,
+    #             "readout_acc": 0.003,
+    #         }
+    #     )
+        
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
         args_list.append(
             {   
                 # -1
-                "random_seed": random_seed,
+                "random_seed": random_seed+40,
                 "outdir": outdir,
                 # neuron parameters
                 "U_r0": 1,
-                "Var_ur": 0.4,
-                "Sigma_ur": 0.025,
-                "Tau_slow": 450,
+                "Var_ur": 0.2,#0.003125, 0.0125, #0.025
+                "Sigma_ur": 0.0365, # 0.245, 0.078
+                "Tau_slow": 1_000,
                 "Tau": 10,
                 # synapse params
                 "Lr": 2e-4,
-                "W_sum_max": 0.12,
+                "W_sum_max": 0.12, #0.075,
                 "A_ltd": 1,
                 "R_0": 2,
-                "C": 3.,
+                "C": 30.,
                 "Tau_W": 100,
                 # set-up params
-                "eff": 0.5,
-                "readout_acc": 0.003,
+                "eff": 30,#25,
+                "readout_acc": 0.005,
             }
         )
 
