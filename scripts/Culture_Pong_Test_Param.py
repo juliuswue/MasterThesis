@@ -77,14 +77,14 @@ MOTOR_POSITIONS_Y = 80 * mm_per_electrode
 n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
-N_RUNS = 50
+N_RUNS = 200
 T_INIT = 300
 N_CPU_CORES = 1
 N_NETWORKS_PER_PARAM_SET = 1
 
 RECORD = True
 LOAD_WEIGHTS = False
-WEIGHT_PATH = '/Users/juliuswuerzler/Documents/Uni/Master/MasterThesis/results/WS_02_06_20_10'
+WEIGHT_PATH = ''
 
 EXPERIMENT = "" # ONLYRSTFB - NoFB - RST
 
@@ -350,15 +350,12 @@ def run_single_network(args):
             if game_state == 'hit':
                 sync_stimulation(network)
                 results[n_trials] = 1
-                
-                # pong_state = simulator.get_simulation()
                 game_state = 'running'
                 n_trials += 1
                 
             elif game_state == 'miss':
                 random_stimulation(network)
                 results[n_trials] = 0
-                
                 game_state = 'running'
                 n_trials += 1
                 
@@ -366,11 +363,6 @@ def run_single_network(args):
                     simulator.reset()
                     pong_state = simulator.get_simulation()
                     f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state},{network['net'].t_}\n")
-                # pong_state = simulator.get_simulation()
-                
-        
-            #----- save data -----
-            # f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state}\n")    
         
     # store final weights
     df = pd.DataFrame({
