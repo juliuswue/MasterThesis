@@ -80,16 +80,16 @@ MOTOR_POSITIONS_Y = 80 * mm_per_electrode
 n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
-N_RUNS = 200
-T_INIT = 900
-N_CPU_CORES = 40
-N_NETWORKS_PER_PARAM_SET = 40
+N_RUNS = 50
+T_INIT = 300
+N_CPU_CORES = 1
+N_NETWORKS_PER_PARAM_SET = 1
 
-RECORD = False
+RECORD = True
 LOAD_WEIGHTS = False
 WEIGHT_PATH = '/Users/juliuswuerzler/Documents/Uni/Master/MasterThesis/results/WS_02_06_20_10'
 
-EXPERIMENT = "RST"#"ONLYRSTFB"#"NoFB" #"RST"
+EXPERIMENT = ""#"ONLYRSTFB"#"NoFB" #"RST"
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -355,10 +355,10 @@ def create_network(args):
     #         synapses.connect(i=int(idx), j=post_id)
     #         selected_motor_ids.append(post_id)
             
-    synapses.w = f'0.05'
+    synapses.w[:] = np.clip(np.random.normal(0.05, 0.02, size=synapses.w[:].size), 0.01, 0.5)#f'0.05'
     for j in range(n_neurons):
         ids = isin(synapses.j, j)
-        # synapses.w[:][ids] = np.clip(synapses.w[:][ids] / sum(synapses.w[:][ids]) * 0.5, 0.03, 0.1) #!CHANGED
+        # synapses.w[:][ids] = np.clip(synapses.w[:][ids].01, 0.5) #!CHANGED
         
     for pre in range(n_neurons):
         ids = isin(synapses.i, pre)
@@ -382,7 +382,7 @@ def create_network(args):
     # synapses.run_regularly(normalization_code, when='end')
     
     
-    dt_record = 50*ms
+    dt_record = 0.1*second
     M = StateMonitor(neurons, ['r'], record=RECORD, dt=dt_record)
     S = StateMonitor(synapses, ['w'], record=RECORD, dt=dt_record)
     
@@ -545,121 +545,19 @@ def run_single_network(args):
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_NT_OLDTP_Var02_300s_30Hz_yEnc_RST"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_NT_OLDTP_Var0_05_30s_0Hz"
     os.makedirs(outdir, exist_ok=True)
-    
-    # for random_seed in range(N_NETWORKS_PER_PARAM_SET):
-    #     args_list.append(
-    #         {   
-    #             # -1
-    #             "random_seed": random_seed,
-    #             "outdir": outdir,
-    #             # neuron parameters
-    #             "U_r0": 1,
-    #             "Var_ur": 1./10.,
-    #             "Sigma_ur": 0.02,
-    #             "Tau_slow": 800,
-    #             "Tau": 10,
-    #             # synapse params
-    #             "Lr": 8e-5 * 2,
-    #             "W_sum_max": 0.125,
-    #             "A_ltd": 1,
-    #             "R_0": 2,
-    #             "C": 3.,
-    #             "Tau_W": 100,
-    #             # set-up params
-    #             "eff": 0.5,
-    #             "readout_acc": 1/500,
-    #         }
-    #     )
-    
-    # # 143
-    # for random_seed in range(N_NETWORKS_PER_PARAM_SET):
-    #     args_list.append(
-    #         {   
-    #             # -1
-    #             "random_seed": random_seed,
-    #             "outdir": outdir,
-    #             # neuron parameters
-    #             "U_r0": 1,
-    #             "Var_ur": 0.31315030420312306,
-    #             "Sigma_ur": 0.017176857843336855,
-    #             "Tau_slow": 430.7254014127252,
-    #             "Tau": 10,
-    #             # synapse params
-    #             "Lr": 0.00018798127730464484,
-    #             "W_sum_max": 0.25374440915578556,
-    #             "A_ltd": 1,
-    #             "R_0": 2,
-    #             "C": 3.,
-    #             "Tau_W": 100,
-    #             # set-up params
-    #             "eff": 0.5,
-    #             "readout_acc": 0.01620895261856791,
-    #         }
-    #     )
-    
-    # # 209
-    # for random_seed in range(N_NETWORKS_PER_PARAM_SET):
-    #     args_list.append(
-    #         {   
-    #             # -1
-    #             "random_seed": random_seed + 10,
-    #             "outdir": outdir,
-    #             # neuron parameters
-    #             "U_r0": 1,
-    #             "Var_ur": 0.3886084849154443,
-    #             "Sigma_ur": 0.024120088203061066,
-    #             "Tau_slow": 460.76724312424335,
-    #             "Tau": 10,
-    #             # synapse params
-    #             "Lr": 0.0001996568486704836,
-    #             "W_sum_max": 0.11314961900231685,
-    #             "A_ltd": 1,
-    #             "R_0": 2,
-    #             "C": 3.,
-    #             "Tau_W": 100,
-    #             # set-up params
-    #             "eff": 0.5,
-    #             "readout_acc": 0.003101130037152416,
-    #         }
-    #     )
-    
-    # for random_seed in range(N_NETWORKS_PER_PARAM_SET):
-    #     args_list.append(
-    #         {   
-    #             # -1
-    #             "random_seed": random_seed,
-    #             "outdir": outdir,
-    #             # neuron parameters
-    #             "U_r0": 1,
-    #             "Var_ur": 0.4,
-    #             "Sigma_ur": 0.025,
-    #             "Tau_slow": 450,
-    #             "Tau": 10,
-    #             # synapse params
-    #             "Lr": 2e-4,
-    #             "W_sum_max": 0.12,
-    #             "A_ltd": 1,
-    #             "R_0": 2,
-    #             "C": 3.,
-    #             "Tau_W": 100,
-    #             # set-up params
-    #             "eff": 0.5,
-    #             "readout_acc": 0.003,
-    #         }
-    #     )
         
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
         args_list.append(
             {   
                 # -1
-                "random_seed": random_seed+40,
+                "random_seed": random_seed,
                 "outdir": outdir,
                 # neuron parameters
                 "U_r0": 1,
-                "Var_ur": 0.2,#0.003125, 0.0125, #0.025
-                "Sigma_ur": 0.0365, # 0.245, 0.078
+                "Var_ur": 0.05,#0.003125, 0.0125, #0.025
+                "Sigma_ur": 0.0577,#0.0365, # 0.245, 0.078
                 "Tau_slow": 1_000,
                 "Tau": 10,
                 # synapse params
@@ -670,8 +568,8 @@ def run_one_paramter_set():
                 "C": 30.,
                 "Tau_W": 100,
                 # set-up params
-                "eff": 30,#25,
-                "readout_acc": 0.005,
+                "eff": 0,#25, 30
+                "readout_acc": 0.002,
             }
         )
 
