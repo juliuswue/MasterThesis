@@ -3,9 +3,6 @@ import matplotlib.patches as patches
 import pandas as pd
 from datetime import datetime
 
-import optuna
-from optuna.storages import JournalStorage
-from optuna.storages.journal import JournalFileBackend
 import json
 
 import time
@@ -39,7 +36,7 @@ dw = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz (constant over dt)
 ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * clip(
     delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) + int(delta_w > 0*Hz) * int(w < 0.5)), 
-    -100*Hz, 100*Hz)
+    -30*17*Hz, 30*17*Hz)
     - 1 / C * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG)
 : 1 (clock-driven)
 theta = r_slow_post / R_0 : Hz (constant over dt)
@@ -153,7 +150,7 @@ def plot_network(network):
         plt.scatter(neurons[idx].X / mmetre, neurons[idx].Y / mmetre, s=30, color='dodgerblue', alpha=0.5)
     
     
-    plt.text(0, -5., stimulation_neurons_info, fontsize='x-small')
+    plt.text(0, -3., stimulation_neurons_info, fontsize='x-small')
 
     plt.xlabel('x [mm]')
     plt.ylabel('y [mm]')
