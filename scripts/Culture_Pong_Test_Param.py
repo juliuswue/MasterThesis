@@ -76,14 +76,14 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 # --- Experiemnt ---
 N_RUNS = 200
 T_INIT = 300
-N_CPU_CORES = 1
-N_NETWORKS_PER_PARAM_SET = 1
+N_CPU_CORES = 8
+N_NETWORKS_PER_PARAM_SET = 40
 
-RECORD = True
+RECORD = False
 LOAD_WEIGHTS = False
 WEIGHT_PATH = ''
 
-EXPERIMENT = "" # ONLYRSTFB - NoFB - RST
+EXPERIMENT = "NoFB" # ONLYRSTFB - NoFB - RST
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -330,19 +330,19 @@ def run_single_network(args):
     n_trials = 0
     game_state = 'running'
     with open(simulation_state_fname, 'w') as f:
-        f.write("trial,ball_x,ball_y,paddle_y,pong_state,network_time\n")
-        f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state},{network['net'].t_}\n")
+        f.write("trial,ball_x,ball_y,paddle_y,rel_ball_x,rel_ball_y,stim_id,pong_state,network_time\n")
+        f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{pong_state['rel_ball_x']},{pong_state['rel_ball_y']},{pong_state['stim_id']},{game_state},{network['net'].t_}\n")
         
         while n_trials < N_RUNS:
             if game_state == 'running':
-                r_U, r_D = gameplay_stimulation(network, pong_state['stim_id'], pong_state['ball_x'], dt_sim)
+                r_U, r_D = gameplay_stimulation(network, pong_state['stim_id'], pong_state['rel_ball_x'], dt_sim)
                 p_U = 1 / (1+exp(clip(-(r_U - r_D) / network["args"]["readout_acc"], -20, 20)))
                 if rand() < p_U:
                     game_state = simulator.simulate('up')
                 else:
                     game_state = simulator.simulate('down')
                 pong_state = simulator.get_simulation()
-                f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state},{network['net'].t_}\n")
+                f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{pong_state['rel_ball_x']},{pong_state['rel_ball_y']},{pong_state['stim_id']},{game_state},{network['net'].t_}\n")
                     
             if game_state == 'hit':
                 sync_stimulation(network)
@@ -359,7 +359,7 @@ def run_single_network(args):
                 if EXPERIMENT !="NoFB":
                     simulator.reset()
                     pong_state = simulator.get_simulation()
-                    f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{game_state},{network['net'].t_}\n")
+                    f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{pong_state['rel_ball_x']},{pong_state['rel_ball_y']},{pong_state['stim_id']},{game_state},{network['net'].t_}\n")
         
     # store final weights
     df = pd.DataFrame({
@@ -420,13 +420,12 @@ def run_single_network(args):
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_NT_OLDTP_Var0_05_30s_0Hz"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_NT_OLDTP_Var0_05_30s_RO01_NoFB"
     os.makedirs(outdir, exist_ok=True)
         
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
         args_list.append(
-            {   
-                # -1
+            {
                 "random_seed": random_seed,
                 "outdir": outdir,
                 # neuron parameters
@@ -443,7 +442,7 @@ def run_one_paramter_set():
                 "Tau_W": 100,
                 # set-up params
                 "eff": 30,
-                "readout_acc": 0.002,
+                "readout_acc": 0.01,
             }
         )
 

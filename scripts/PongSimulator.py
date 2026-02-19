@@ -93,7 +93,9 @@ class PongSimulator:
         
         return {
             'paddle_y': self.paddle_y / self.height,
-            'ball_x': rel_x_pos,
-            'ball_y': rel_y_pos,
+            'ball_x': self.ball_x / self.width,
+            'ball_y': self.ball_y / self.height,
+            'rel_ball_x': rel_x_pos,
+            'rel_ball_y': rel_y_pos,
             'stim_id': stim_id,
         }
