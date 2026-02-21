@@ -10,7 +10,7 @@ class PongSimulator:
 
         # paddle properties
         self.paddle_width = 5
-        self.paddle_height = 25
+        self.paddle_height = 40
         self.max_paddle_speed = self.height * dt_sim * 0.75
         self.paddle_y = self.height // 2  # center of the paddle
         self.paddle_vel = 0

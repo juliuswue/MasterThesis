@@ -77,13 +77,13 @@ n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 N_RUNS = 200
 T_INIT = 300
 N_CPU_CORES = 8
-N_NETWORKS_PER_PARAM_SET = 40
+N_NETWORKS_PER_PARAM_SET = 8
 
 RECORD = False
 LOAD_WEIGHTS = False
 WEIGHT_PATH = ''
 
-EXPERIMENT = "NoFB" # ONLYRSTFB - NoFB - RST
+EXPERIMENT = "" # ONLYRSTFB - NoFB - RST
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -420,7 +420,7 @@ def run_single_network(args):
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_trial_NT_OLDTP_Var0_05_30s_RO01_NoFB"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}"
     os.makedirs(outdir, exist_ok=True)
         
     for random_seed in range(N_NETWORKS_PER_PARAM_SET):
@@ -435,7 +435,7 @@ def run_one_paramter_set():
                 "Tau_slow": 1_000,
                 "Tau": 10,
                 # synapse params
-                "Lr": 2e-4,
+                "Lr": 1e-4,
                 "W_sum_max": 0.12,
                 "R_0": 2,
                 "C": 2_000,

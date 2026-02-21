@@ -17,7 +17,7 @@ def animate(simulation_state_data):
     ax.set_yticks([])
 
     # --- Paddle (rectangle in data units) ---
-    paddle_height = 0.25
+    paddle_height = 0.4
     paddle_width = 0.05
     paddle_x = 0.0
 
