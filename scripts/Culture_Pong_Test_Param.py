@@ -395,21 +395,21 @@ def run_single_network(args):
                             f"network_{args['random_seed']}_weights.csv")
         df.to_csv(fname, index=False)
         
-        # ---- save neuron IDs ----
-        ids = {
-            "motor_ids_U": [int(x) for x in network["motor_ids_U"]],
-            "motor_ids_D": [int(x) for x in network["motor_ids_D"]],
-            "sensory_ids": [int(x) for x in network["sensory_ids"]],
-            "stimulation_ids": [int(x) for x in network["stimulation_ids"]],
-        }
+    # ---- save neuron IDs ----
+    ids = {
+        "motor_ids_U": [int(x) for x in network["motor_ids_U"]],
+        "motor_ids_D": [int(x) for x in network["motor_ids_D"]],
+        "sensory_ids": [int(x) for x in network["sensory_ids"]],
+        "stimulation_ids": [int(x) for x in network["stimulation_ids"]],
+    }
 
-        fname = os.path.join(
-            args["outdir"],
-            f"network_{args['random_seed']}_neuron_ids.json"
-        )
+    fname = os.path.join(
+        args["outdir"],
+        f"network_{args['random_seed']}_neuron_ids.json"
+    )
 
-        with open(fname, "w") as f:
-            json.dump(ids, f, indent=4)
+    with open(fname, "w") as f:
+        json.dump(ids, f, indent=4)
 
     # store results
     fname = os.path.join(args["outdir"], f"network_{args['random_seed']}_results.csv")
