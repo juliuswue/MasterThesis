@@ -36,8 +36,8 @@ dw = r_pre/Hz * r_post/Hz * (r_post - theta) : Hz (constant over dt)
 ddelta_w/dt = 1 / Tau_W * (dw - delta_w) : Hz (clock-driven)
 dw/dt = Lr * clip(
     delta_w * (int(delta_w < 0*Hz) * int(w > 0.01) + int(delta_w > 0*Hz) * int(w < 0.5)), 
-    -30*17*Hz, 30*17*Hz)
-    - 1 / C * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG)
+    -30*17*15/4*Hz, 30*17*15/4*Hz)
+    - int(Lr>0) / C * int(sum_w_pre > W_sum_max * DEG) * int(w > 0.01) * (sum_w_pre - W_sum_max * DEG)
 : 1 (clock-driven)
 theta = r_slow_post / R_0 : Hz (constant over dt)
 u_syn_post = w * r_pre : Hz (summed)
@@ -74,16 +74,16 @@ MOTOR_POSITIONS_Y = 80 * mm_per_electrode
 n_neurons = int(WIDTH * HEIGHT * NEURON_DENSITY)
 
 # --- Experiemnt ---
-N_RUNS = 200
+N_RUNS = 50
 T_INIT = 300
-N_CPU_CORES = 8
-N_NETWORKS_PER_PARAM_SET = 8
+N_CPU_CORES = 7
+N_NETWORKS_PER_PARAM_SET = 7
 
 RECORD = False
-LOAD_WEIGHTS = False
-WEIGHT_PATH = ''
+LOAD_WEIGHTS = True
+WEIGHT_PATH = '/Users/juliuswuerzler/Desktop/Results_Thesis/Delta_BCM_Update/FB/02_23_22_49_LR_1_PW_04_HigherDeltaBCM_30_17_15_4'
 
-EXPERIMENT = "" # ONLYRSTFB - NoFB - RST
+EXPERIMENT = "" # ONLYRSTFB - NoFB - RST - NoS - NoR - NoReset - Dropout
 
 # ----------------------- Functions -----------------------
 # --- plot ---
@@ -177,7 +177,7 @@ def gameplay_stimulation(network, stim_id, ball_x, dt_stim):
     return r_U, r_D
 
 def random_stimulation(network):
-    if EXPERIMENT != "RST" and EXPERIMENT !="NoFB" and EXPERIMENT != "ONLYRSTFB":
+    if EXPERIMENT != "RST" and EXPERIMENT !="NoFB" and EXPERIMENT != "ONLYRSTFB" and EXPERIMENT != "NoR":
         for idx in network["stimulation_ids"]:
             network["neurons"][idx:idx+1].r_ext = 5*Hz
         network["net"].run(4*second)
@@ -187,7 +187,7 @@ def random_stimulation(network):
         network["net"].run(4*second)
     
 def sync_stimulation(network):
-    if EXPERIMENT != "RST" and EXPERIMENT !="NoFB" and EXPERIMENT != "ONLYRSTFB":
+    if EXPERIMENT != "RST" and EXPERIMENT !="NoFB" and EXPERIMENT != "ONLYRSTFB" and EXPERIMENT != "NoS":
         for idx in network["stimulation_ids"]:
             network["neurons"][idx:idx+1].r_ext = network["args"]["eff"]*Hz
         network["net"].run(0.1*second)
@@ -268,8 +268,15 @@ def create_network(args):
     synapses.theta = args["R_0"]*Hz
     synapses.Tau_W = args["Tau_W"]*ms
     
+    # # #! Freeze weights
+    # electrodes_to_freeze = [3,4]
+    # for electrode in electrodes_to_freeze:
+    #     neuron_ids = stimulation_ids[electrode*N_PER_ELECTRODE:(electrode+1)*N_PER_ELECTRODE]
+    #     mask = np.isin(synapses.i[:], neuron_ids)
+    #     synapses.Lr[:][mask] = 0
+
     
-    dt_record = 0.1*second
+    dt_record = 0.01*second
     M = StateMonitor(neurons, ['r'], record=RECORD, dt=dt_record)
     S = StateMonitor(synapses, ['w'], record=RECORD, dt=dt_record)
     
@@ -279,11 +286,34 @@ def create_network(args):
         for file in os.listdir(WEIGHT_PATH):
             file_name = os.path.join(WEIGHT_PATH, file)
                 
-            if f"_{args["random_seed"]}_weights.csv" in file_name:
+            if f"_{args["random_seed"]}_initial_weights.csv" in file_name:
                 loaded_data = np.genfromtxt(file_name, delimiter=',', names=True, dtype=None, encoding='utf-8')
                 
                 synapses.w[:] = loaded_data['w']
                 print("Weights sucessfully loaded!")
+                
+                if EXPERIMENT == "Dropout":
+                    
+                    # electrodes_to_destroy = []
+                    # electrodes_to_destroy = [2,3,4,5]
+                    # electrodes_to_destroy = [0, 1, 6, 7]
+                    electrodes_to_destroy = [0, 1, 2, 3,4,5,6,7]
+                    for electrode in electrodes_to_destroy:
+                        pre_mask = isin(synapses.i[:], stimulation_ids[electrode*N_PER_ELECTRODE:(electrode+1)*N_PER_ELECTRODE])
+                        post_mask = isin(synapses.j[:], all_motor_ids)
+                        
+                        synapses.w[:][pre_mask & post_mask] = 0
+                    
+                    n_destroyed = 0
+                    n_synapses = synapses.w[:].size
+                    while n_destroyed < 4 * 3 * 2:
+                        id_destroy = random_integers(0, n_synapses-1)
+                        
+                        if synapses.i[:][id_destroy] not in stimulation_ids:
+                            synapses.w[:][id_destroy] = 0
+                            n_destroyed += 1
+
+                    synapses.Lr[:] = 0
                 break
     else:
         net.run(T_INIT*second)
@@ -356,7 +386,7 @@ def run_single_network(args):
                 game_state = 'running'
                 n_trials += 1
                 
-                if EXPERIMENT !="NoFB":
+                if EXPERIMENT !="NoFB" and EXPERIMENT != "NoReset":
                     simulator.reset()
                     pong_state = simulator.get_simulation()
                     f.write(f"{n_trials},{pong_state['ball_x']},{pong_state['ball_y']},{pong_state['paddle_y']},{pong_state['rel_ball_x']},{pong_state['rel_ball_y']},{pong_state['stim_id']},{game_state},{network['net'].t_}\n")
@@ -420,10 +450,16 @@ def run_single_network(args):
 def run_one_paramter_set():
     args_list = []
     
-    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}"
+    outdir = f"results/{datetime.datetime.now().strftime("%m_%d_%H_%M")}_LR_1_PW_04_{EXPERIMENT}_InitialBaseline"
     os.makedirs(outdir, exist_ok=True)
         
-    for random_seed in range(N_NETWORKS_PER_PARAM_SET):
+    network_seeds = arange(N_NETWORKS_PER_PARAM_SET).tolist()
+    if EXPERIMENT == 'Dropout':
+        with open(WEIGHT_PATH + "/summary.json", "r") as f:
+            d = json.load(f)
+            network_seeds = argwhere(array(d['results'])>0.6).reshape(-1).tolist()
+        
+    for random_seed in network_seeds:
         args_list.append(
             {
                 "random_seed": random_seed,
@@ -435,7 +471,7 @@ def run_one_paramter_set():
                 "Tau_slow": 1_000,
                 "Tau": 10,
                 # synapse params
-                "Lr": 1e-4,
+                "Lr": 0,#1e-4,
                 "W_sum_max": 0.12,
                 "R_0": 2,
                 "C": 2_000,
